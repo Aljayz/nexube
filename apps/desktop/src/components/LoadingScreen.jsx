@@ -9,9 +9,9 @@ function LoadingScreen({ message = 'Loading Nexube...' }) {
           alt="Nexube"
           className="w-64 h-64 mb-xl animate-pulse-slow"
         />
-        <div className="w-48 h-1 bg-surface rounded-full overflow-hidden">
+        {/* <div className="w-48 h-1 bg-surface rounded-full overflow-hidden">
           <div className="h-full bg-accent animate-pulse" style={{ width: '100%' }} />
-        </div>
+        </div> */}
         <p className="mt-md text-text-muted text-sm">{message}</p>
       </div>
     </div>

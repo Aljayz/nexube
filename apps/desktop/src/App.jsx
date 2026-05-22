@@ -10,6 +10,7 @@ import HelpShortcutsModal from './components/HelpShortcutsModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingScreen from './components/LoadingScreen';
 import NoticeDialog from './components/NoticeDialog';
+import UpdateNotification from './components/UpdateNotification';
 
 const HomeView = lazy(() => import('./pages/HomeView'));
 const SearchView = lazy(() => import('./pages/SearchView'));
@@ -351,6 +352,7 @@ function App() {
         </div>
       </div>
       )}
+      <UpdateNotification />
     </div>
   );
 }

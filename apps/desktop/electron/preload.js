@@ -73,11 +73,14 @@ contextBridge.exposeInMainWorld('electron', {
   app: {
     quit: () => ipcRenderer.send('app:quit'),
   },
-  shell: {
-    openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
-    showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
-    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
-  },
+   shell: {
+     openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
+     showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+   },
+   feedback: {
+     openFeedbackForm: () => ipcRenderer.invoke('feedback:openForm'),
+   },
   downloads: {
     start: (params) => ipcRenderer.invoke('downloads:start', params),
     cancel: (id) => ipcRenderer.invoke('downloads:cancel', id),
@@ -148,6 +151,48 @@ contextBridge.exposeInMainWorld('electron', {
     if (handler) ipcRenderer.removeListener('pip-state', handler);
   },
   recordBlockedPopup: (url) => ipcRenderer.invoke('record-blocked-popup', url),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+    getStatus: () => ipcRenderer.invoke('update:getStatus'),
+    setEnabled: (enabled) => ipcRenderer.invoke('update:setEnabled', enabled),
+    getLatestVersion: () => ipcRenderer.invoke('update:getLatestVersion'),
+    onChecking: (callback) => {
+      const h = () => callback();
+      ipcRenderer.on('update:checking', h);
+      return h;
+    },
+    onAvailable: (callback) => {
+      const h = (_, info) => callback(info);
+      ipcRenderer.on('update:available', h);
+      return h;
+    },
+    onNotAvailable: (callback) => {
+      const h = (_, info) => callback(info);
+      ipcRenderer.on('update:not-available', h);
+      return h;
+    },
+    onError: (callback) => {
+      const h = (_, err) => callback(err);
+      ipcRenderer.on('update:error', h);
+      return h;
+    },
+    onProgress: (callback) => {
+      const h = (_, progress) => callback(progress);
+      ipcRenderer.on('update:progress', h);
+      return h;
+    },
+    onDownloaded: (callback) => {
+      const h = (_, info) => callback(info);
+      ipcRenderer.on('update:downloaded', h);
+      return h;
+    },
+    removeListener: (channel, handler) => {
+      ipcRenderer.removeListener(channel, handler);
+    },
+  },
   onBlockedUpdate: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('blocked-stats-update', handler);

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { User, Palette, Play, Download, Settings, Users, Database, RefreshCw, Info, MessageSquare } from 'lucide-react';
 import { useSettings, applyAccentColor } from '../hooks/useSettings';
 import GeneralSettings from '../components/settings/GeneralSettings';
 import AppearanceSettings from '../components/settings/AppearanceSettings';
@@ -8,24 +9,13 @@ import PlaybackSettings from '../components/settings/PlaybackSettings';
 import DataSettings from '../components/settings/DataSettings';
 import AboutSettings from '../components/settings/AboutSettings';
 import DownloadSettings from '../components/settings/DownloadSettings';
-
-const ALL_TABS = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'general', label: 'General' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'profiles', label: 'Members' },
-  { id: 'playback', label: 'Playback' },
-  { id: 'downloads', label: 'Downloads' },
-  { id: 'data', label: 'Memory & Data' },
-  { id: 'about', label: 'About' },
-];
-
-const RESTRICTED_TABS = ['profile', 'appearance', 'playback', 'downloads', 'about'];
+import FeedbackReport from '../components/settings/FeedbackReport';
+import UpdateSettings from '../components/settings/UpdateSettings';
+import SettingsFooter from '../components/settings/SettingsFooter';
+import SettingsSection from '../components/settings/SettingsSection';
 
 function SettingsPage({ activeProfile, onProfileUpdated }) {
   const isMaster = activeProfile?.isMaster;
-  const TABS = isMaster ? ALL_TABS : ALL_TABS.filter((t) => RESTRICTED_TABS.includes(t.id));
-  const [activeTab, setActiveTab] = useState('profile');
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [pendingAccentColor, setPendingAccentColor] = useState(activeProfile?.accentColor || '#00E5FF');
@@ -88,64 +78,70 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
     <div className="px-lg py-lg max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-text-primary mb-lg">Settings</h1>
 
-      <div className="flex gap-xs mb-lg border-b border-border overflow-x-auto">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-md py-sm text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-text-muted hover:text-text-primary'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="space-y-lg">
+        <SettingsSection icon={User} title="My Profile" description="Manage your avatar and security settings">
+          <ProfileSettings activeProfile={activeProfile} onSaved={handleProfilesSaved} />
+        </SettingsSection>
+
+        <SettingsSection icon={Palette} title="Appearance" description="Customize the look and feel of the app">
+          <AppearanceSettings
+            pendingAccentColor={pendingAccentColor}
+            setPendingAccentColor={setPendingAccentColor}
+            onSaveAccentColor={handleSaveAccentColor}
+          />
+        </SettingsSection>
+
+        <SettingsSection icon={Play} title="Playback" description="Configure streaming sources and auto-watch behavior">
+          <PlaybackSettings activeProfile={activeProfile} onProfileUpdated={onProfileUpdated} />
+        </SettingsSection>
+
+        <SettingsSection icon={Download} title="Downloads" description="Manage download paths and the downloader binary">
+          <DownloadSettings activeProfile={activeProfile} onProfileUpdated={onProfileUpdated} />
+        </SettingsSection>
+
+        {isMaster && (
+          <>
+            <SettingsSection icon={Settings} title="General" description="API keys and global preferences">
+              <GeneralSettings
+                apiKey={apiKey}
+                setApiKey={setApiKey}
+                kidsFilterCountry={kidsFilterCountry}
+                setKidsFilterCountry={setKidsFilterCountry}
+                onSaveKidsCountry={saveKidsFilterCountry}
+                activeProfile={activeProfile}
+              />
+            </SettingsSection>
+
+            <SettingsSection icon={Users} title="Members" description="Add, edit, or remove profiles">
+              <ProfilesSettings
+                profiles={profiles}
+                profilesLoading={profilesLoading}
+                onAddProfile={handleAddProfile}
+                onDeleteProfile={handleDeleteProfile}
+                onSaved={handleProfilesSaved}
+              />
+            </SettingsSection>
+
+            <SettingsSection icon={Database} title="Memory & Data" description="Manage cache, export, and data storage">
+              <DataSettings />
+            </SettingsSection>
+          </>
+        )}
+
+        <SettingsSection icon={RefreshCw} title="Updates" description="Check for new versions and manage update preferences">
+          <UpdateSettings />
+        </SettingsSection>
+
+        <SettingsSection icon={Info} title="About" description="App information and features">
+          <AboutSettings />
+        </SettingsSection>
+
+        <SettingsSection icon={MessageSquare} title="Feedback" description="Report issues or suggest features">
+          <FeedbackReport activeProfile={activeProfile} />
+        </SettingsSection>
+
+        <SettingsFooter />
       </div>
-
-      {activeTab === 'profile' && (
-        <ProfileSettings activeProfile={activeProfile} onSaved={handleProfilesSaved} />
-      )}
-
-      {activeTab === 'general' && (
-        <GeneralSettings
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          kidsFilterCountry={kidsFilterCountry}
-          setKidsFilterCountry={setKidsFilterCountry}
-          onSaveKidsCountry={saveKidsFilterCountry}
-          activeProfile={activeProfile}
-        />
-      )}
-
-      {activeTab === 'appearance' && (
-        <AppearanceSettings
-          pendingAccentColor={pendingAccentColor}
-          setPendingAccentColor={setPendingAccentColor}
-          onSaveAccentColor={handleSaveAccentColor}
-        />
-      )}
-
-      {activeTab === 'profiles' && (
-        <ProfilesSettings
-          profiles={profiles}
-          profilesLoading={profilesLoading}
-          onAddProfile={handleAddProfile}
-          onDeleteProfile={handleDeleteProfile}
-          onSaved={handleProfilesSaved}
-        />
-      )}
-
-      {activeTab === 'playback' && (
-        <PlaybackSettings activeProfile={activeProfile} onProfileUpdated={onProfileUpdated} />
-      )}
-
-      {activeTab === 'downloads' && <DownloadSettings activeProfile={activeProfile} onProfileUpdated={onProfileUpdated} />}
-
-      {activeTab === 'data' && <DataSettings />}
-
-      {activeTab === 'about' && <AboutSettings />}
     </div>
   );
 }

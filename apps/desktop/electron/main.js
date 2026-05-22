@@ -1,6 +1,7 @@
 const { app, BrowserWindow, session, ipcMain, nativeImage, shell } = require('electron');
 const path = require('path');
 const { getDatabase, closeDatabase } = require('@nexube/store');
+const APP_VERSION = require('../package.json').version;
 
 const BLOCKED_HOSTS = [
   '*://www.google-analytics.com/*',
@@ -66,6 +67,7 @@ const { register: registerProfiles } = require('./ipc/profiles');
 const { register: registerLibrary } = require('./ipc/library');
 const { register: registerSystem } = require('./ipc/system');
 const { register: registerDownloads, killAllDownloads } = require('./ipc/downloads');
+const { register: registerUpdater } = require('./ipc/updater');
 
 let mainWindow = null;
 
@@ -96,13 +98,11 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.webContents.executeJavaScript(`
-      const meta = document.createElement('meta');
-      meta.httpEquiv = 'Content-Security-Policy';
-      meta.content = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3; frame-src https:;";
-      document.head.appendChild(meta);
-    `).catch(() => {});
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+    const headers = { ...details.responseHeaders };
+    headers['content-security-policy'] = [CSP];
+    callback({ responseHeaders: headers });
   });
 
   blockStats.init(getMainWindow);
@@ -215,12 +215,18 @@ app.whenReady().then(() => {
   registerSystem();
   registerDownloads(mainWindow);
   registerAllmanga();
+  registerUpdater();
 
   ipcMain.handle('get-block-stats', () => blockStats.getBlockStats());
   ipcMain.handle('get-platform', () => process.platform);
+  ipcMain.handle('get-app-version', () => APP_VERSION);
   ipcMain.handle('record-blocked-popup', (_, url) => {
-    blockStats.recordBlockedRequest(url);
-  });
+      blockStats.recordBlockedRequest(url);
+    });
+   
+    ipcMain.handle('feedback:openForm', async () => {
+      return { success: true, version: APP_VERSION };
+    });
 
   try {
     const { getDatabase, deleteDownload } = require('@nexube/store');
@@ -245,6 +251,15 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+
+  setTimeout(() => {
+    const ElectronStore = require('electron-store');
+    const updaterStore = new ElectronStore({ name: 'updater-settings' });
+    if (updaterStore.get('autoUpdaterEnabled', true)) {
+      const { autoUpdater } = require('electron-updater');
+      autoUpdater.checkForUpdates().catch(() => {});
+    }
+  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

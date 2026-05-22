@@ -1,4 +1,5 @@
-import { Film, Tv, Monitor, ShieldCheck, ExternalLink, Heart, Code } from 'lucide-react';
+import { Film, Tv, Monitor, ShieldCheck } from 'lucide-react';
+import { APP_VERSION } from '../../version';
 
 export default function AboutSettings() {
   return (
@@ -12,7 +13,7 @@ export default function AboutSettings() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-bold text-text-primary tracking-tight">Nexube</h2>
-            <p className="text-sm text-text-muted mt-xs">Version 0.1.0</p>
+            <p className="text-sm text-text-muted mt-xs">Version {APP_VERSION}</p>
             <p className="text-sm text-text-muted mt-sm leading-relaxed max-w-lg">
               Browse, discover, and stream your favorite movies and TV shows
               from multiple sources — all in one place, with no account required.
@@ -74,53 +75,6 @@ export default function AboutSettings() {
         </div>
       </div>
 
-      <div className="bg-surface rounded-card p-xl border border-border space-y-md">
-        <p className="text-xs text-text-muted text-center leading-relaxed">
-          This product uses the TMDB API but is not endorsed or certified by{' '}
-          <a
-            href="https://www.themoviedb.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:underline inline-flex items-center gap-1"
-          >
-            The Movie Database (TMDB)
-            <ExternalLink className="w-3 h-3" />
-          </a>
-          .
-        </p>
-
-        <div className="flex items-center justify-center gap-xl pt-sm border-t border-border/50">
-          <div className="flex items-center gap-sm text-sm text-text-muted">
-            <Code className="w-4 h-4" />
-            <span>
-              Built by{' '}
-              <a
-                href="https://aljayz.github.io/portfolio/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
-              >
-                Aljayz
-              </a>
-            </span>
-          </div>
-          <div className="flex items-center gap-sm text-sm text-text-muted">
-            <Heart className="w-4 h-4" />
-            <span>
-              Inspired by{' '}
-              <a
-                href="https://github.com/truelockmc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
-              >
-                truelockmc
-              </a>
-              's Streambert
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
