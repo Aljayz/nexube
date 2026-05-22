@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('electron', {
   offSubtitleFound: (handler) => {
     if (handler) ipcRenderer.removeListener('subtitle-found', handler);
   },
+  getPlatform: () => ipcRenderer.invoke('get-platform'),
   resolveAllmanga: (params) => ipcRenderer.invoke('resolve-allmanga', params),
   setPlayerVideo: (params) => ipcRenderer.invoke('set-player-video', params),
   getBlockStats: () => ipcRenderer.invoke('get-block-stats'),

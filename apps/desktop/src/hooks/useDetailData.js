@@ -38,6 +38,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [episodes, setEpisodes] = useState([]);
   const [relatedMovies, setRelatedMovies] = useState([]);
+  const [similarItems, setSimilarItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasCached, setHasCached] = useState(false);
@@ -138,6 +139,36 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
   }, [selectedSeason, media.type, media.tmdbId]);
 
   useEffect(() => {
+    let mounted = true;
+    const endpoint = media.type === 'movie' ? `/movie/${media.tmdbId}/similar` : `/tv/${media.tmdbId}/similar`;
+    window.electron?.tmdb?.fetch(endpoint)
+      .then((res) => {
+        if (!mounted || !res?.results) return;
+        setSimilarItems(
+          res.results.slice(0, 12).map((p) => ({
+            id: `${media.type}-${p.id}`,
+            tmdbId: p.id,
+            title: p.title || p.name,
+            type: media.type,
+            mediaType: media.type === 'movie' ? 'Movie' : 'TV',
+            posterPath: p.poster_path,
+            backdropPath: p.backdrop_path,
+            overview: p.overview,
+            releaseDate: p.release_date || p.first_air_date,
+            voteAverage: p.vote_average,
+            voteCount: p.vote_count,
+            popularity: p.popularity,
+            originalLanguage: p.original_language,
+            genreIds: p.genre_ids || [],
+            isAnime: p.original_language === 'ja',
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [media.type, media.tmdbId]);
+
+  useEffect(() => {
     if (media.type !== 'movie') return;
 
     window.electron?.tmdb?.fetch(`/movie/${media.tmdbId}`, { append_to_response: 'belongs_to_collection' })
@@ -204,6 +235,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
     setSelectedSeason,
     episodes,
     relatedMovies,
+    similarItems,
     loading,
     error,
     hasCached,

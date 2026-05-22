@@ -16,7 +16,7 @@ function Navbar({ activeProfile, onProfileSelect, onSearchToggle, onNavigate, cu
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === 'f') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         onSearchToggle();
       }

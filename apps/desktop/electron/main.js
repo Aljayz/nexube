@@ -82,7 +82,8 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    frame: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    frame: process.platform === 'darwin',
     backgroundColor: '#08080C',
     icon,
     webPreferences: {
@@ -216,6 +217,7 @@ app.whenReady().then(() => {
   registerAllmanga();
 
   ipcMain.handle('get-block-stats', () => blockStats.getBlockStats());
+  ipcMain.handle('get-platform', () => process.platform);
   ipcMain.handle('record-blocked-popup', (_, url) => {
     blockStats.recordBlockedRequest(url);
   });

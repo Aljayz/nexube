@@ -48,6 +48,7 @@ function App() {
   const [pinTarget, setPinTarget] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [platform, setPlatform] = useState(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -201,21 +202,26 @@ function App() {
   }, [showSearch]);
 
   useEffect(() => {
+    window.electron?.getPlatform?.().then(setPlatform).catch(() => setPlatform('linux'));
+  }, []);
+
+  useEffect(() => {
+    const mod = (e) => e.metaKey || e.ctrlKey;
     const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === 'r') {
+      if (mod(e) && e.key === 'r') {
         e.preventDefault();
         window.location.reload();
         return;
       }
-      if (e.ctrlKey && e.key === 'z') {
+      if (mod(e) && e.key === 'z') {
         e.preventDefault();
         navigateBack();
       }
-      if (e.ctrlKey && e.key === 'f') {
+      if (mod(e) && e.key === 'f') {
         e.preventDefault();
         toggleSearch();
       }
-      if (e.ctrlKey && e.key === 'x') {
+      if (mod(e) && e.key === 'x') {
         e.preventDefault();
         handleLogoutConfirm();
       }
@@ -236,7 +242,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <CustomTitlebar />
+      {platform !== 'darwin' && <CustomTitlebar />}
 
       {loading ? (
         <SplashScreen />

@@ -6,6 +6,7 @@ import MediaHero from '../components/MediaHero';
 import PlayerSection from '../components/PlayerSection';
 import EpisodeGrid from '../components/EpisodeGrid';
 import MediaCard from '../components/MediaCard';
+import MediaCarousel from '../components/MediaCarousel';
 import TrailerList from '../components/TrailerList';
 import SubtitleModal from '../components/SubtitleModal';
 import DownloadModal from '../components/DownloadModal';
@@ -33,6 +34,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
     setSelectedSeason,
     episodes,
     relatedMovies,
+    similarItems,
     loading,
     error,
     hasCached,
@@ -259,6 +261,16 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
             onSeasonChange={setSelectedSeason}
             onPlayEpisode={handlePlay}
           />
+        )}
+
+        {similarItems.length > 0 && (
+          <div className="mt-2xl pt-xl border-t border-border/50">
+            <MediaCarousel
+              title={`Similar ${media.type === 'movie' ? 'Movies' : 'Shows'}`}
+              items={similarItems}
+              onSelect={onSelect}
+            />
+          </div>
         )}
 
         {relatedMovies.length > 0 && (

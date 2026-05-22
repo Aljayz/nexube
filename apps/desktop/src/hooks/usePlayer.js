@@ -265,11 +265,11 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (playerUrl) {
-        if (e.key === 'Escape' || (e.ctrlKey && e.key === 'z')) {
+        if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key === 'z')) {
           e.preventDefault();
           handleClosePlayer();
         }
-        if (e.ctrlKey && e.key === 'e') {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
           e.preventDefault();
           setPlayerLoading(true);
           if (webviewRef.current) {
