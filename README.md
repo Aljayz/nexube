@@ -117,6 +117,9 @@ pnpm electron:build --mac
 
 Outputs platform-specific installers in `release/`.
 
+## Inspiration
+This project was inspired by [Streambert](https://github.com/truelockmc/streambert) by [truelockmc](https://github.com/truelockmc). While this is a completely independent implementation written from scratch, their work heavily inspired the concept and architecture.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE)
