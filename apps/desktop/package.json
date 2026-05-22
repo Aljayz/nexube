@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "@nexube/player-engine": "workspace:*",
@@ -41,18 +42,11 @@
     "appId": "com.nexube.app",
     "productName": "Nexube",
     "directories": {
-      "output": "dist-electron"
+      "output": "release"
     },
-    "extraResources": [
-      {
-        "from": "resources/vid-dl/${os}/${vid-dl}",
-        "to": "vid-dl",
-        "filter": ["**/*"]
-      }
-    ],
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "dist-electron/**/*"
     ],
     "win": {
       "target": "nsis",
@@ -67,7 +61,14 @@
     },
     "linux": {
       "target": ["AppImage", "deb", "pacman"],
-      "icon": "public/Logo.png"
+      "icon": "public/Logo.png",
+      "extraResources": [
+        {
+          "from": "resources/vid-dl/linux/vid-dl",
+          "to": "vid-dl",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "mac": {
       "target": [

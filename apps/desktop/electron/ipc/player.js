@@ -25,7 +25,7 @@ function register(getMainWindow) {
       title: 'PiP Player',
       webPreferences: {
         partition: 'persist:player',
-        preload: path.join(__dirname, '../popout-preload.js'),
+        preload: path.join(__dirname, 'popout-preload.js'),
         nodeIntegration: false,
         contextIsolation: true,
         webviewTag: true,

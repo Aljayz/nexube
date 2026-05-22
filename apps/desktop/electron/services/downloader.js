@@ -8,8 +8,7 @@ const activeProcs = new Map();
 
 function getBundledBinaryPath() {
   const platform = process.platform;
-  const appRoot = path.resolve(__dirname, '../..');
-  const resourcePath = path.join(appRoot, 'resources/vid-dl', platform, 'vid-dl');
+  const resourcePath = process.resourcesPath || path.resolve(__dirname, '../../resources');
 
   let binaryPath;
   if (platform === 'win32') {
@@ -19,7 +18,7 @@ function getBundledBinaryPath() {
   }
 
   const exists = fs.existsSync(binaryPath);
-  console.log('[getBundledBinaryPath] appRoot:', appRoot, 'binaryPath:', binaryPath, 'exists:', exists);
+  console.log('[getBundledBinaryPath] resourcePath:', resourcePath, 'binaryPath:', binaryPath, 'exists:', exists);
 
   if (exists) return binaryPath;
   return null;
