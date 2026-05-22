@@ -35,7 +35,12 @@ Thumbs.db
 *.swp
 *.swo
 
+# Release artifacts
+release/
+
 # Electron builder temp files
 *.blockmap
-*.yml
-*.yaml
+
+# CI / Deploy
+.vercel
+.env*

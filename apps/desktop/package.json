@@ -1,15 +1,20 @@
 {
   "name": "@nexube/desktop",
   "version": "0.1.0",
+  "description": "Nexube - Cross-platform media streaming desktop app",
+  "author": "Aljayz <albertjaybarororosique@gmail.com>",
+  "homepage": "https://github.com/Aljayz/nexube",
+  "license": "MIT",
   "private": true,
-  "main": "electron/main.js",
+  "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build && vite",
-    "build": "vite build",
+    "dev": "pnpm copy-electron && pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build && vite",
+    "build": "pnpm copy-electron && vite build",
     "preview": "vite preview",
-    "electron:dev": "pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "copy-electron": "node scripts/copy-electron.cjs",
+    "electron:dev": "pnpm copy-electron && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "pnpm copy-electron && vite build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@nexube/player-engine": "workspace:*",
@@ -19,6 +24,7 @@
     "@tanstack/react-query": "^5.0.0",
     "axios": "^1.7.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.16.0",
     "m3u8-parser": "^7.0.0",
     "react": "^18.2.0",
@@ -32,6 +38,7 @@
     "electron-builder": "^24.0.0",
     "electron-rebuild": "^3.2.9",
     "postcss": "^8.4.0",
+    "prebuild-install": "^7.1.3",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
@@ -48,6 +55,23 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "Aljayz",
+      "repo": "nexube",
+      "releaseType": "release"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nexube",
+      "installerIcon": "public/Logo.ico",
+      "uninstallerIcon": "public/Logo.ico",
+      "installerHeaderIcon": "public/Logo.ico"
+    },
     "win": {
       "target": "nsis",
       "icon": "public/Logo.ico",
@@ -55,27 +79,51 @@
         {
           "from": "resources/vid-dl/windows/vid-dl",
           "to": "vid-dl",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
     "linux": {
-      "target": ["AppImage", "deb", "pacman"],
+      "target": [
+        "AppImage",
+        "deb",
+        "pacman"
+      ],
       "icon": "public/Logo.png",
+      "category": "Video",
       "extraResources": [
         {
           "from": "resources/vid-dl/linux/vid-dl",
           "to": "vid-dl",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "public/Logo.icns",
-      "category": "public.app-category.entertainment"
+      "category": "public.app-category.entertainment",
+      "extraResources": [
+        {
+          "from": "resources/vid-dl/darwin/vid-dl",
+          "to": "vid-dl",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     }
   }
 }

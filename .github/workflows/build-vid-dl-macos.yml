@@ -1,0 +1,71 @@
+name: Build vid-dl (macOS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    name: Build vid-dl for macOS (universal2)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get current week (for cache rotation)
+        id: date
+        run: echo "week=$(date +'%Y-%V')" >> $GITHUB_OUTPUT
+
+      - name: Cache pip (macOS)
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: pip-mac-${{ hashFiles('app/vid-dl-cli-only/requirements.txt') }}-${{ steps.date.outputs.week }}
+          restore-keys: |
+            pip-mac-${{ hashFiles('app/vid-dl-cli-only/requirements.txt') }}-
+            pip-mac-
+
+      - name: Cache PyInstaller (macOS)
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Application Support/pyinstaller
+          key: pyinstaller-mac-universal2-py3.12-${{ hashFiles('app/vid-dl-cli-only/requirements.txt') }}
+          restore-keys: pyinstaller-mac-universal2-py3.12-
+
+      - name: Install Python dependencies
+        run: pip install -r app/vid-dl-cli-only/requirements.txt pyinstaller pillow
+
+      - name: Build .app bundle (universal2)
+        working-directory: app/vid-dl-cli-only
+        run: |
+          python -m PyInstaller \
+            --noconfirm --onedir --clean --noupx \
+            --icon=icon.png \
+            --exclude-module pycryptodomex.selftest \
+            --exclude-module pycryptodomex.tests \
+            --target-arch universal2 \
+            --name "vid-dl" \
+            cli.py
+
+      - name: Prepare output directory
+        run: |
+          mkdir -p dist/darwin/vid-dl
+          cp -r app/vid-dl-cli-only/dist/vid-dl/* dist/darwin/vid-dl/
+
+      - name: Upload macOS vid-dl artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vid-dl-macos
+          path: dist/darwin/vid-dl/
+
+      - name: Summary
+        run: |
+          echo "## macOS vid-dl build complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the **vid-dl-macos** artifact and extract it to:" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "apps/desktop/resources/vid-dl/darwin/vid-dl/" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/darwin/vid-dl/ >> $GITHUB_STEP_SUMMARY
