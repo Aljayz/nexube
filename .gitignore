@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Monorepo / Build Caches
+.turbo/
+
+# Build outputs
+apps/desktop/dist/
+apps/desktop/dist-electron/
+packages/*/dist/
+
+# Local Databases / State
+apps/desktop/nexube.db
+*.db
+*.db-wal
+*.db-shm
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Electron builder temp files
+*.blockmap
+*.yml
+*.yaml

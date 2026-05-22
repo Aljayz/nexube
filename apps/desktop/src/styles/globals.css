@@ -1,0 +1,194 @@
+:root {
+  --accent: 0 229 255;
+  --accent-hover: 0 200 224;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-text-primary antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  }
+}
+
+@layer components {
+  .titlebar-btn {
+    @apply w-12 h-8 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors duration-200;
+  }
+  .titlebar-btn.close {
+    @apply hover:text-danger hover:bg-danger/10;
+  }
+  .media-card {
+    @apply relative rounded-card overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-105;
+  }
+  .carousel-row {
+    @apply flex gap-md overflow-x-auto overflow-y-visible scrollbar-hide scroll-smooth py-2;
+  }
+  .carousel-row::-webkit-scrollbar {
+    display: none;
+  }
+  .btn-primary {
+    @apply px-lg py-sm bg-accent text-background font-medium rounded-button hover:bg-accent-hover transition-colors duration-200;
+  }
+  .btn-secondary {
+    @apply px-lg py-sm bg-surface text-text-primary font-medium rounded-button border border-border hover:border-border-hover transition-colors duration-200;
+  }
+  .btn-danger {
+    @apply px-lg py-sm border border-red-500 text-red-600 font-medium rounded-button hover:bg-red-600/60 hover:text-white transition-colors duration-200;
+  }
+  .btn-cancel {
+    @apply px-lg py-sm bg-gray-700 text-gray-400 font-medium rounded-button hover:bg-gray-600 hover:text-gray-900 transition-colors duration-200;
+  }
+  
+  .input-field {
+    @apply w-full px-md py-sm bg-surface border border-border rounded-button text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors duration-200;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent to-blue-500 bg-clip-text text-transparent;
+  }
+  .backdrop-blur-overlay {
+    backdrop-filter: blur(4px);
+    background-color: rgba(0, 0, 0, 0.85);
+  }
+  .blocked-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+  }
+  .blocked-modal {
+    background: #1a1a2e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    width: 420px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+  .blocked-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .blocked-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #e0e0e0;
+  }
+  .blocked-modal-close {
+    padding: 4px;
+    color: #888;
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .blocked-modal-close:hover {
+    color: #e0e0e0;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .blocked-modal-subtitle {
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #888;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .blocked-modal-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .blocked-modal-empty {
+    padding: 24px 20px;
+    text-align: center;
+    color: #666;
+    font-size: 13px;
+  }
+  .blocked-modal-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px;
+    font-size: 13px;
+  }
+  .blocked-modal-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .blocked-modal-domain {
+    color: #c0c0c0;
+    word-break: break-all;
+    padding-right: 12px;
+  }
+  .blocked-modal-count {
+    color: #00e5ff;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .blocked-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    color: #888;
+  }
+  .blocked-modal-footer strong {
+    color: #c0c0c0;
+  }
+}

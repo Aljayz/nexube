@@ -1,0 +1,20 @@
+{
+  "name": "@nexube/store",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nexube/types": "workspace:*",
+    "better-sqlite3": "^9.0.0",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/better-sqlite3": "^7.6.0"
+  }
+}

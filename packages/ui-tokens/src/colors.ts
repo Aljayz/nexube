@@ -1,0 +1,20 @@
+export const colors = {
+  background: '#08080C',
+  surface: '#12121A',
+  surfaceHover: '#1A1A24',
+  accent: '#00E5FF',
+  accentHover: '#00C8E0',
+  textPrimary: '#FFFFFF',
+  textMuted: '#8A8A9E',
+  textDisabled: '#4A4A5E',
+  border: '#2A2A3A',
+  borderHover: '#3A3A4A',
+  danger: '#FF4757',
+  success: '#2ED573',
+  warning: '#FFA502',
+  overlay: 'rgba(0, 0, 0, 0.85)',
+  gradient: {
+    top: 'rgba(8, 8, 12, 0)',
+    bottom: 'rgba(8, 8, 12, 1)',
+  },
+} as const;

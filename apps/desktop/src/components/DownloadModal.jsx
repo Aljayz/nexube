@@ -1,0 +1,476 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, Settings, ExternalLink } from 'lucide-react';
+import { useDownloads } from '../hooks/useDownloads';
+
+const RELEASE_URL = 'https://github.com/truelockmc/vid-dl-cli-only/releases/latest';
+
+function DownloadModal({ media, activeProfile, sourceId, onClose }) {
+  const profileId = activeProfile?.id || 'master-id';
+  const { downloads, startDownload } = useDownloads(profileId);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState(null);
+  const [error, setError] = useState(null);
+  const [season, setSeason] = useState(1);
+  const [episode, setEpisode] = useState(1);
+  const [episodes, setEpisodes] = useState([]);
+  const [seasons, setSeasons] = useState([]);
+  const [downloaderFolder, setDownloaderFolder] = useState(() => {
+    try {
+      return localStorage.getItem('nexube-downloader-folder') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [downloader, setDownloader] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [usingBundled, setUsingBundled] = useState(false);
+  const [downloadPath, setDownloadPath] = useState(activeProfile?.downloadPath || '');
+  const [settingPath, setSettingPath] = useState(false);
+  const abortRef = useRef(false);
+
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+  const binaryHint = ua.includes('win')
+    ? 'Windows_x64-portable'
+    : ua.includes('mac')
+      ? 'macOS (compile yourself)'
+      : 'Linux_x64-portable';
+
+  useEffect(() => {
+    if (media?.type === 'tv') {
+      fetchSeasons();
+    }
+  }, [media]);
+
+  useEffect(() => {
+    let mounted = true;
+    setChecking(true);
+
+    window.electron?.downloads?.checkBundledDownloader().then((result) => {
+      if (!mounted) return;
+      if (result.exists) {
+        setDownloader(result);
+        setUsingBundled(true);
+        setChecking(false);
+        return;
+      }
+
+      if (downloaderFolder) {
+        window.electron?.downloads?.checkDownloader(downloaderFolder).then((manualResult) => {
+          if (!mounted) return;
+          setDownloader(manualResult);
+          setUsingBundled(false);
+          setChecking(false);
+        });
+      } else {
+        setUsingBundled(false);
+        setChecking(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [downloaderFolder]);
+
+  useEffect(() => {
+    if (downloadStatus?.id) {
+      const existing = downloads.find((d) => d.id === downloadStatus.id);
+      if (existing) {
+        if (existing.status === 'completed') {
+          setDownloading(false);
+        } else if (existing.status === 'failed' || existing.status === 'error') {
+          setDownloading(false);
+          setError(existing.error || 'Download failed');
+        }
+      }
+    }
+  }, [downloads, downloadStatus]);
+
+  async function fetchSeasons() {
+    try {
+      const details = await window.electron?.tmdb?.fetch(`/tv/${media.tmdbId}`);
+      if (details?.seasons) {
+        const filtered = details.seasons.filter((s) => s.season_number > 0);
+        setSeasons(filtered);
+        if (filtered.length > 0) {
+          setSeason(filtered[0].season_number);
+          fetchEpisodes(filtered[0].season_number);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch seasons:', err);
+    }
+  }
+
+  async function fetchEpisodes(seasonNumber) {
+    try {
+      const res = await window.electron?.tmdb?.fetch(`/tv/${media.tmdbId}/season/${seasonNumber}`);
+      if (res?.episodes) {
+        setEpisodes(res.episodes);
+        setEpisode(1);
+      }
+    } catch (err) {
+      console.error('Failed to fetch episodes:', err);
+    }
+  }
+
+  const pickBinaryFolder = async () => {
+    const folder = await window.electron?.downloads?.pickFolder();
+    if (folder) {
+      setDownloaderFolder(folder);
+      try {
+        localStorage.setItem('nexube-downloader-folder', folder);
+      } catch {}
+    }
+  };
+
+  const pickDownloadFolder = async () => {
+    const folder = await window.electron?.downloads?.pickFolder();
+    if (folder) {
+      setDownloadPath(folder);
+      await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
+      setSettingPath(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!downloader?.exists) return;
+    if (!downloadPath) {
+      setSettingPath(true);
+      return;
+    }
+
+    setDownloading(true);
+    setError(null);
+    abortRef.current = false;
+
+    const currentEp = media.type === 'tv' ? episodes.find((ep) => ep.episode_number === episode) : null;
+    const episodeTitle = currentEp?.name || null;
+
+    const result = await startDownload({
+      mediaId: media.id,
+      title: media.title,
+      type: media.type,
+      quality: 'best',
+      tmdbId: media.tmdbId,
+      season: media.type === 'tv' ? season : undefined,
+      episode: media.type === 'tv' ? episode : undefined,
+      episodeTitle: media.type === 'tv' ? episodeTitle : undefined,
+      sourceId,
+      binaryPath: usingBundled ? null : downloader.binaryPath,
+      downloadPath,
+    });
+
+    if (result?.success) {
+      setDownloadStatus({ id: result.downloadId || result.id });
+    } else {
+      setDownloading(false);
+      setError(result?.error || 'Failed to start download');
+    }
+  };
+
+  const handleClose = () => {
+    abortRef.current = true;
+    onClose();
+  };
+
+  const activeDownload = downloadStatus?.id
+    ? downloads.find((d) => d.id === downloadStatus.id)
+    : null;
+
+  // ── No download path set ───────────────────────────────────────────────
+  if (!downloadPath || settingPath) {
+    return (
+      <div className="fixed inset-0 bg-overlay backdrop-blur-overlay z-50 flex items-center justify-center p-xl" onClick={handleClose}>
+        <div className="relative w-full max-w-md bg-surface rounded-xl overflow-hidden shadow-xl border border-border" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-lg py-md border-b border-border">
+            <div className="flex items-center gap-sm">
+              <FolderOpen className="w-5 h-5 text-accent" />
+              <h3 className="text-lg font-bold text-text-primary">Set Download Folder</h3>
+            </div>
+            <button onClick={handleClose} className="text-text-muted hover:text-text-primary transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-lg">
+            <p className="text-sm text-text-muted mb-lg">
+              {settingPath ? 'Choose where downloaded videos should be saved:' : (
+                <>
+                  <span className="text-danger font-semibold">No download folder set.</span>
+                  <br />
+                  Choose where to save downloaded videos:
+                </>
+              )}
+            </p>
+
+            <div className="flex gap-sm mb-lg">
+              <input
+                className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
+                placeholder="/home/you/Videos/Nexube"
+                value={downloadPath}
+                onChange={(e) => setDownloadPath(e.target.value)}
+              />
+              <button
+                className="btn-secondary px-md py-sm text-sm"
+                onClick={pickDownloadFolder}
+              >
+                Browse
+              </button>
+            </div>
+
+            <div className="flex gap-sm">
+              <button
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!downloadPath.trim()}
+                onClick={async () => {
+                  await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: downloadPath.trim() });
+                  setSettingPath(false);
+                }}
+              >
+                Confirm
+              </button>
+              {settingPath && (
+                <button className="btn-secondary" onClick={() => setSettingPath(false)}>
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main modal ─────────────────────────────────────────────────────────
+  return (
+    <div className="fixed inset-0 bg-overlay backdrop-blur-overlay z-50 flex items-center justify-center p-xl" onClick={handleClose}>
+      <div className="relative w-full max-w-lg bg-surface rounded-xl overflow-hidden shadow-xl border border-border" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-lg py-md border-b border-border">
+          <div className="flex items-center gap-sm">
+            <Download className="w-5 h-5 text-accent" />
+            <h3 className="text-lg font-bold text-text-primary">Download</h3>
+          </div>
+          <button onClick={handleClose} className="text-text-muted hover:text-text-primary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-lg">
+          <div className="flex gap-md mb-lg">
+            <img
+              src={
+                media.posterPath
+                  ? `https://image.tmdb.org/t/p/w185${media.posterPath}`
+                  : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" fill="%2312121A"></svg>'
+              }
+              alt={media.title}
+              className="w-24 h-36 object-cover rounded-card"
+            />
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium text-text-primary mb-sm">{media.title}</h4>
+              <div className="flex items-center gap-sm text-sm text-text-muted">
+                {media.type === 'movie' ? (
+                  <Film className="w-4 h-4" />
+                ) : (
+                  <Tv className="w-4 h-4" />
+                )}
+                <span>{media.type === 'movie' ? 'Movie' : 'TV Series'}</span>
+              </div>
+              {media.releaseDate && (
+                <p className="text-sm text-text-muted mt-xs">{new Date(media.releaseDate).getFullYear()}</p>
+              )}
+            </div>
+          </div>
+
+          {media.type === 'tv' && seasons.length > 0 && (
+            <div className="mb-lg">
+              <label className="text-sm font-medium text-text-primary mb-sm block">Episode</label>
+              <div className="flex gap-sm">
+                <select
+                  value={season}
+                  onChange={(e) => {
+                    const s = parseInt(e.target.value, 10);
+                    setSeason(s);
+                    fetchEpisodes(s);
+                  }}
+                  className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
+                >
+                  {seasons.map((s) => (
+                    <option key={s.season_number} value={s.season_number}>
+                      Season {s.season_number}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={episode}
+                  onChange={(e) => setEpisode(parseInt(e.target.value, 10))}
+                  className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
+                >
+                  {episodes.map((ep) => (
+                    <option key={ep.episode_number} value={ep.episode_number}>
+                      E{ep.episode_number} - {ep.name?.length > 25 ? ep.name.slice(0, 25) + '...' : ep.name || `Episode ${ep.episode_number}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* ── Downloader setup ──────────────────────────────────────── */}
+          {!downloader?.exists && !usingBundled && (
+            <div className="mb-lg p-md bg-background border border-border rounded-card">
+              <h4 className="text-sm font-semibold text-text-primary mb-sm">Set up Video Downloader</h4>
+              <ol className="text-sm text-text-muted space-y-xs mb-md">
+                <li className="flex items-start gap-sm">
+                  <span className="text-accent font-mono">1.</span>
+                  <span>
+                    Download the latest release from{' '}
+                    <a
+                      href={RELEASE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:underline inline-flex items-center gap-2xs"
+                    >
+                      GitHub <ExternalLink className="w-3 h-3" />
+                    </a>
+                    {' '}for your OS: <code className="px-xs py-2xs bg-surface rounded text-xs">{binaryHint}</code>
+                  </span>
+                </li>
+                <li className="flex items-start gap-sm">
+                  <span className="text-accent font-mono">2.</span>
+                  <span>Extract the release into a folder</span>
+                </li>
+                <li className="flex items-start gap-sm">
+                  <span className="text-accent font-mono">3.</span>
+                  <span>Select that folder below (must contain <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code>)</span>
+                </li>
+              </ol>
+
+              <div className="flex items-center gap-sm">
+                <button className="btn-secondary text-sm flex items-center gap-sm" onClick={pickBinaryFolder}>
+                  <FolderOpen className="w-4 h-4" />
+                  Choose folder
+                </button>
+                {downloaderFolder && (
+                  <span className="text-xs text-text-muted truncate">{downloaderFolder}</span>
+                )}
+              </div>
+
+              {checking && (
+                <div className="flex items-center gap-sm mt-sm text-sm text-text-muted">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Checking…
+                </div>
+              )}
+
+              {!checking && downloader && !downloader.exists && downloaderFolder && (
+                <div className="mt-sm text-sm text-danger">
+                  {downloader.reason === 'folder_permission' && 'Permission denied.'}
+                  {downloader.reason === 'folder_unreadable' && 'Folder could not be read.'}
+                  {downloader.reason === 'no_internal' && (
+                    <>Missing <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code> folder. Extract the full release.</>
+                  )}
+                  {(!downloader.reason || downloader.reason === 'no_executable') && (
+                    <>No executable found. On Linux, run <code className="px-xs py-2xs bg-surface rounded text-xs">chmod +x</code> on the binary.</>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {checking && (
+            <div className="mb-lg flex items-center gap-sm text-sm text-text-muted">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Checking for bundled downloader…
+            </div>
+          )}
+
+          {downloader?.exists && (
+            <div className="mb-lg">
+              <div className="flex items-center gap-sm mb-sm">
+                <CheckCircle className="w-4 h-4 text-success" />
+                <span className="text-sm text-success font-medium">
+                  {usingBundled ? 'Video Downloader ready (bundled)' : 'Video Downloader found'}
+                </span>
+              </div>
+              <div className="flex items-center gap-sm mb-md">
+                <span className="text-xs text-text-muted">Save to:</span>
+                <code className="text-xs text-text-muted truncate">{downloadPath}</code>
+                <button className="text-xs text-accent hover:underline" onClick={() => setSettingPath(true)}>
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+
+          {downloading && activeDownload && (
+            <div className="mb-lg">
+              <div className="flex items-center justify-between mb-sm">
+                <span className="text-sm text-text-muted flex items-center gap-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {activeDownload.lastMessage || 'Downloading...'}
+                </span>
+                <span className="text-sm text-accent">{(activeDownload.progress || 0).toFixed(1)}%</span>
+              </div>
+              <div className="h-2 bg-background rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-all duration-300"
+                    style={{ width: `${Math.min(activeDownload.progress || 0, 100).toFixed(1)}%` }}
+                />
+              </div>
+              {activeDownload.speed && (
+                <p className="text-xs text-text-muted mt-xs">{activeDownload.speed}</p>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-lg p-sm bg-danger/10 border border-danger/30 rounded text-sm text-danger flex items-center gap-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {activeDownload?.status === 'completed' && (
+            <div className="mb-lg p-sm bg-success/10 border border-success/30 rounded text-sm text-success flex items-center gap-sm">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Download complete!</span>
+            </div>
+          )}
+
+          {!checking && downloader?.exists && downloadStatus !== 'ok' && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-sm"
+            >
+              {downloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Starting…
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  {media.type === 'tv' ? `Download S${season}E${episode}` : 'Download'}
+                </>
+              )}
+            </button>
+          )}
+
+          {downloadStatus === 'ok' && (
+            <div className="text-center">
+              <div className="text-success font-medium mb-sm">Download started!</div>
+              <button className="btn-secondary text-sm" onClick={handleClose}>
+                Close — track progress in Downloads
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default DownloadModal;
