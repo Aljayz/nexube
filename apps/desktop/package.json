@@ -90,7 +90,7 @@
       ],
       "icon": "public/sized",
       "category": "Video",
-
+      "executableArgs": ["--no-sandbox"],
       "desktop": {
         "entry": {
           "Name": "Nexube",

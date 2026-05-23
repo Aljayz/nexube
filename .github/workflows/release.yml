@@ -34,6 +34,13 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
+      - name: Set version from git tag
+        working-directory: apps/desktop
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "export const APP_VERSION = '${VERSION}';" > src/version.js
+
       - name: Build Windows installer
         working-directory: apps/desktop
         run: pnpm electron:build
@@ -72,6 +79,13 @@ jobs:
 
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
+
+      - name: Set version from git tag
+        working-directory: apps/desktop
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "export const APP_VERSION = '${VERSION}';" > src/version.js
 
       - name: Build Linux installers
         working-directory: apps/desktop
