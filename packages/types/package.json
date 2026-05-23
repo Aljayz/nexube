@@ -1,6 +1,6 @@
 {
   "name": "@nexube/types",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "main": "dist/index.js",
   "types": "src/index.ts",
