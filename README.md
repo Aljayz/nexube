@@ -35,6 +35,7 @@
 ---
 ## Download Link
 [Link](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
+
 ---
 
 ## 📸 Screenshots
