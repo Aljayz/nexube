@@ -88,8 +88,7 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb",
-        "pacman"
+        "deb"
       ],
       "icon": "public/Logo.png",
       "category": "Video",
