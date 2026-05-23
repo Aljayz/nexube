@@ -85,7 +85,7 @@ function SecurityOverlay({ target, onSuccess, onCancel }) {
       <div className="fixed inset-0 bg-overlay backdrop-blur-overlay flex items-center justify-center z-50">
         <div className="bg-surface rounded-xl p-xl w-80 shadow-xl">
           <div className="text-center mb-lg">
-            <img src="/Logo.png" alt="Nexube" className="w-16 h-16 mx-auto mb-md" />
+            <img src="Logo.png" alt="Nexube" className="w-16 h-16 mx-auto mb-md" />
             <h2 className="text-xl font-bold text-text-primary">Enter Password</h2>
             <p className="text-sm text-text-muted mt-sm">
               {target?.type === 'profile-create'
@@ -147,7 +147,7 @@ function SecurityOverlay({ target, onSuccess, onCancel }) {
     <div className="fixed inset-0 bg-overlay backdrop-blur-overlay flex items-center justify-center z-50">
       <div className="bg-surface rounded-xl p-xl w-80 shadow-xl">
         <div className="text-center mb-lg">
-          <img src="/Logo.png" alt="Nexube" className="w-16 h-16 mx-auto mb-md" />
+          <img src="Logo.png" alt="Nexube" className="w-16 h-16 mx-auto mb-md" />
           <h2 className="text-xl font-bold text-text-primary">Enter PIN</h2>
           <p className="text-sm text-text-muted mt-sm">
             {target?.type === 'profile-create'

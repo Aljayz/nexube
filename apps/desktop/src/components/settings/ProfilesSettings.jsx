@@ -203,8 +203,8 @@ export default function ProfilesSettings({
 
   function getAvatarSrc(avatar) {
     if (!avatar) return null;
-    if (avatar.startsWith('/') || avatar.startsWith('file:')) return avatar;
-    return `/${avatar}`;
+    if (avatar.startsWith('file:')) return avatar;
+    return avatar;
   }
 
   return (

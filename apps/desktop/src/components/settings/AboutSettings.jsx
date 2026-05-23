@@ -8,7 +8,7 @@ export default function AboutSettings() {
         <div className="relative p-xl flex items-center gap-xl">
           <div className="relative">
             <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center ring-1 ring-accent/20">
-              <img src="/Logo.png" alt="Nexube" className="w-16 h-16" />
+              <img src="Logo.png" alt="Nexube" className="w-16 h-16" />
             </div>
           </div>
           <div className="flex-1 min-w-0">

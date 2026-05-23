@@ -33,7 +33,7 @@ export default function UpdateApiKeyModal({ onClose, onSaved }) {
       <div className="w-full max-w-md bg-surface rounded-xl overflow-hidden shadow-xl border border-border">
         <div className="p-xl">
           <div className="text-center mb-xl">
-            <img src="/Logo.png" alt="Nexube" className="w-24 h-24 mx-auto mb-lg" />
+            <img src="Logo.png" alt="Nexube" className="w-24 h-24 mx-auto mb-lg" />
             <h2 className="text-xl font-bold text-text-primary mb-sm">Update API Key</h2>
             <p className="text-sm text-text-muted">
               Your current TMDB API key is invalid. Enter a new key to continue.

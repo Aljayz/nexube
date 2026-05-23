@@ -5,7 +5,7 @@ function LoadingScreen({ message = 'Loading Nexube...' }) {
     <div className="flex flex-col items-center justify-center h-screen bg-background">
       <div className="animate-fade-in flex flex-col items-center">
         <img
-          src="/Logo+Name.png"
+          src="Logo+Name.png"
           alt="Nexube"
           className="w-64 h-64 mb-xl animate-pulse-slow"
         />

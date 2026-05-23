@@ -59,7 +59,7 @@ function Navbar({ activeProfile, onProfileSelect, onSearchToggle, onNavigate, cu
   return (
     <nav className="flex flex-col w-19 h-full bg-surface border-r border-accent/30">
       <div className="flex items-center justify-center px-sm py-lg border-b border-accent/30">
-        <img src="/Logo.png" alt="Nexube" className="w-8 h-8" />
+        <img src="Logo.png" alt="Nexube" className="w-8 h-8" />
       </div>
 
       <div className="flex-1 flex flex-col items-center py-md gap-xs">
@@ -175,7 +175,7 @@ function Navbar({ activeProfile, onProfileSelect, onSearchToggle, onNavigate, cu
                   >
                     {profile.avatar ? (
                       <img
-                        src={profile.avatar.startsWith('/') || profile.avatar.startsWith('file:') ? profile.avatar : `/${profile.avatar}`}
+                        src={profile.avatar}
                         alt=""
                         className="w-full h-full object-cover"
                       />

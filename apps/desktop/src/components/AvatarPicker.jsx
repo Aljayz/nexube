@@ -28,8 +28,8 @@ export default function AvatarPicker({ currentAvatar, currentColor, profileName,
 
   function getAvatarSrc(avatar) {
     if (!avatar) return null;
-    if (avatar.startsWith('/') || avatar.startsWith('file:')) return avatar;
-    return `/${avatar}`;
+    if (avatar.startsWith('file:')) return avatar;
+    return avatar;
   }
 
   return (
@@ -69,7 +69,7 @@ export default function AvatarPicker({ currentAvatar, currentColor, profileName,
                   : 'border-transparent hover:border-accent/50 hover:scale-105'
               }`}
             >
-              <img src={`/${filename}`} alt="" className="w-full h-full object-cover" />
+              <img src={filename} alt="" className="w-full h-full object-cover" />
             </button>
           );
         })}

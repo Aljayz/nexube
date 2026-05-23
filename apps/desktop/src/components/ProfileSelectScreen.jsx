@@ -94,14 +94,14 @@ export default function ProfileSelectScreen({
 
   function getAvatarSrc(avatar) {
     if (!avatar) return null;
-    if (avatar.startsWith('/') || avatar.startsWith('file:')) return avatar;
-    return `/${avatar}`;
+    if (avatar.startsWith('file:')) return avatar;
+    return avatar;
   }
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <img src="/Name.png" alt="Nexube" className="w-auto h-7 mb-xl opacity-50" />
+        <img src="Name.png" alt="Nexube" className="w-auto h-7 mb-xl opacity-50" />
         <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -109,7 +109,7 @@ export default function ProfileSelectScreen({
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-background px-lg">
-      <img src="/Name.png" alt="Nexube" className="w-auto h-7 mb-xl" />
+      <img src="Name.png" alt="Nexube" className="w-auto h-7 mb-xl" />
 
       <h1 className="text-2xl font-bold text-text-primary mb-lg">
         Who's watching?

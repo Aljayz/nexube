@@ -20,7 +20,7 @@ function SplashScreen() {
     <div className="flex flex-col items-center justify-center flex-1 bg-background">
       <div className="animate-fade-in flex flex-col items-center">
         <img
-          src="/Logo+Name.png"
+          src="Logo+Name.png"
           alt="Nexube"
           className="w-64 h-64 mb-xl animate-pulse-slow"
         />

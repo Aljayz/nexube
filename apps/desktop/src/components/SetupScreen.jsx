@@ -100,11 +100,11 @@ function SetupScreen({ onComplete }) {
     <div className="flex flex-col items-center justify-center h-screen bg-background">
       <div className="w-full max-w-md px-xl">
         <div className="text-center mb-xl">
-          <img src="/Logo.png" alt="Nexube" className="w-48 h-48 mx-auto mb-lg" />
+          <img src="Logo.png" alt="Nexube" className="w-48 h-48 mx-auto mb-lg" />
           <h1 className="text-2xl font-bold text-text-primary mb-sm">
             {step === 1 ? (
               <span className="flex items-center justify-center gap-1">
-                Welcome to <img src="/Name.png" alt="Nexube" className="w-auto h-7" />
+                Welcome to <img src="Name.png" alt="Nexube" className="w-auto h-7" />
               </span>
             ) : 'Secure Your Account'}
           </h1>

@@ -21,7 +21,7 @@ function CustomTitlebar() {
     >
       <div className="flex items-center gap-sm px-md">
         {/* <img src="/Logo.png" alt="Nexube" className="w-4 h-4" /> */}
-        <img src="/Name.png" alt="Name" className="w-8 h-3" />
+        <img src="Name.png" alt="Name" className="w-8 h-3" />
         {/* <span className="text-xs text-text-muted">Nexube</span> */}
       </div>
 
