@@ -20,6 +20,7 @@ function HomeView({ activeProfile, onSelect }) {
   const [progressMap, setProgressMap] = useState({});
   const [similarItems, setSimilarItems] = useState([]);
   const [similarLabel, setSimilarLabel] = useState('');
+  const [continueWatching, setContinueWatching] = useState([]);
 
   const mapItem = (item, type) => ({
     id: `${type}-${item.id}`,
@@ -112,14 +113,34 @@ function HomeView({ activeProfile, onSelect }) {
     if (!hasCached) return;
     async function loadProgress() {
       try {
-        const continueWatching = await window.electron?.library?.progress?.continueWatching(profileId);
-        if (continueWatching && Array.isArray(continueWatching)) {
+        const cwData = await window.electron?.library?.progress?.continueWatching(profileId);
+        if (cwData && Array.isArray(cwData)) {
           const map = {};
-          for (const item of continueWatching) {
+          const items = [];
+          for (const item of cwData) {
             const key = `${item.type}-${item.tmdb_id}`;
             map[key] = item.progress_percent || 0;
+            items.push({
+              id: key,
+              tmdbId: item.tmdb_id,
+              title: item.title,
+              type: item.type,
+              mediaType: item.type === 'movie' ? 'Movie' : 'TV',
+              posterPath: item.poster_path,
+              backdropPath: item.backdrop_path,
+              overview: item.overview,
+              releaseDate: item.release_date,
+              voteAverage: item.vote_average,
+              voteCount: item.vote_count,
+              popularity: item.popularity,
+              originalLanguage: item.original_language,
+              genreIds: [],
+              isAnime: !!item.is_anime,
+              progress_percent: item.progress_percent,
+            });
           }
           setProgressMap(map);
+          setContinueWatching(items);
         }
       } catch (err) {
         console.error('Failed to load progress:', err);
@@ -187,6 +208,18 @@ function HomeView({ activeProfile, onSelect }) {
       )}
 
       <div className="flex flex-col gap-xl px-lg py-lg">
+        {continueWatching.length > 0 && (
+          <MediaCarousel
+            title="Continue Watching"
+            items={continueWatching}
+            onSelect={onSelect}
+            showProgress
+            getProgress={(id) => {
+              const item = continueWatching.find((i) => i.id === id);
+              return item?.progress_percent || 0;
+            }}
+          />
+        )}
         {similarItems.length > 0 && (
           <MediaCarousel
             title={similarLabel}

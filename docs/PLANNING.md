@@ -9,7 +9,7 @@
 | Workflow | File | Triggers | Purpose |
 |---|---|---|---|
 | **Build vid-dl (macOS)** | `.github/workflows/build-vid-dl-macos.yml` | Manual only (`workflow_dispatch`) | Compile macOS vid-dl binary via PyInstaller |
-| **Release Build** | `.github/workflows/release.yml` | Manual + tag push (`v*`) | Build all platform installers, upload to GitHub Release |
+| **Release Build** | `.github/workflows/release.yml` | Manual + tag push (`v*`) | Build all platform installers (includes macOS vid-dl), create GitHub Release |
 
 ## 2. Release Process
 

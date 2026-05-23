@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Bell, Film, Tv, Sparkles, Calendar, Plus } from 'lucide-react';
+import { Bell, Film, Tv, Sparkles, Calendar } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 
 const TABS = [
@@ -287,13 +287,17 @@ function NotificationView({ activeProfile, onSelect }) {
                 onClick={() => onSelect?.({ id: update.mediaId, tmdbId: update.mediaId.split('-')[1], type: 'movie', title: update.title, posterPath: update.posterPath })}
               >
                 <div className="flex items-start gap-md">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    {update.type === 'released' ? (
-                      <Plus className="w-5 h-5 text-accent" />
-                    ) : (
+                  {update.type === 'released' && update.posterPath ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w92${update.posterPath}`}
+                      alt={update.title}
+                      className="w-18 h-24 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-5 h-5 text-accent" />
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <div className="flex-1">
                     <h3 className="font-medium text-text-primary mb-xs">{update.title}</h3>
                     <p className="text-sm text-text-muted">{update.message}</p>
@@ -326,13 +330,17 @@ function NotificationView({ activeProfile, onSelect }) {
                 onClick={() => onSelect?.({ id: update.mediaId, tmdbId: update.mediaId.split('-')[1], type: 'tv', title: update.title, posterPath: update.posterPath })}
               >
                 <div className="flex items-start gap-md">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    {update.type === 'new_episode' || update.type === 'new_season' ? (
-                      <Plus className="w-5 h-5 text-accent" />
-                    ) : (
+                  {(update.type === 'new_episode' || update.type === 'new_season') && update.posterPath ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w92${update.posterPath}`}
+                      alt={update.title}
+                      className="w-18 h-24 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-5 h-5 text-accent" />
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <div className="flex-1">
                     <h3 className="font-medium text-text-primary mb-xs">{update.title}</h3>
                     <p className="text-sm text-text-muted">{update.message}</p>
