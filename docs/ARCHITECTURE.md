@@ -25,6 +25,7 @@
 
 Nexube is a pnpm Turborepo monorepo with four packages and one desktop application. The architecture follows a **workspace-dependency pattern** where business logic (types, store, player engine, UI tokens) lives in shared packages consumed by the Electron desktop app.
 
+
 ### 1.1 High-Level Diagram
 
 ```
