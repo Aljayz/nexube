@@ -19,9 +19,21 @@ function MediaCard({ media, onClick, showProgress = false, progress = 0, showWat
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-        {media.mediaType && (
-          <div className="absolute top-sm right-sm px-xs py-2xs bg-accent/20 rounded text-xs text-accent font-medium uppercase">
-            {media.mediaType}
+        <div className="absolute top-sm right-sm flex items-center gap-xs">
+          {media.certification && (
+            <span className="px-xs py-2xs bg-surface-hover rounded text-xs text-text-primary font-medium">
+              {media.certification}
+            </span>
+          )}
+          {media.mediaType && (
+            <span className="px-xs py-2xs bg-accent/20 rounded text-xs text-accent font-medium uppercase">
+              {media.mediaType}
+            </span>
+          )}
+        </div>
+        {media.adult && (
+          <div className="absolute top-sm left-sm px-xs py-2xs bg-danger/80 rounded text-xs text-background font-bold">
+            18+
           </div>
         )}
 

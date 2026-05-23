@@ -17,6 +17,8 @@ const {
   killAllDownloads,
   getBundledBinaryPath,
   cleanupPartialFiles,
+  resolveBinaryPath,
+  checkBundledAndRegister,
 } = require('../services/downloader');
 
 const downloadsStore = new Map();
@@ -41,9 +43,7 @@ function register(mainWindow) {
   _mainWindow = mainWindow;
 
   ipcMain.handle('check-bundled-downloader', () => {
-    const bundledPath = getBundledBinaryPath();
-    if (!bundledPath) return { exists: false, reason: 'no_bundled' };
-    return checkDownloader(path.dirname(bundledPath));
+    return checkBundledAndRegister();
   });
 
   ipcMain.handle('check-downloader', (_, folderPath) => {
@@ -51,7 +51,7 @@ function register(mainWindow) {
   });
 
   ipcMain.handle('run-download', async (_, {
-    binaryPath,
+    binaryToken,
     m3u8Url,
     name,
     downloadPath,
@@ -65,9 +65,9 @@ function register(mainWindow) {
     sourceId,
   }) => {
     try {
-      const checkResult = checkDownloader(path.dirname(binaryPath));
-      if (!checkResult.exists) {
-        return { ok: false, error: 'Downloader binary not found' };
+      const binaryPath = resolveBinaryPath(binaryToken);
+      if (!binaryPath) {
+        return { ok: false, error: 'Downloader binary not found or token expired' };
       }
 
       const downloadId = `dl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -122,25 +122,25 @@ function register(mainWindow) {
     season,
     episode,
     sourceId,
-    binaryPath,
+    binaryToken,
     downloadPath,
     episodeTitle,
   }) => {
     try {
       console.log('[downloads:start] params:', { mediaId, type, tmdbId, season, episode, sourceId, downloadPath });
 
-      let resolvedBinaryPath = binaryPath;
+      let resolvedBinaryPath = null;
 
-      if (!resolvedBinaryPath) {
-        resolvedBinaryPath = getBundledBinaryPath();
-        if (!resolvedBinaryPath) {
-          return { success: false, error: 'No downloader binary found. Please set it up in the download modal.' };
-        }
+      if (binaryToken) {
+        resolvedBinaryPath = resolveBinaryPath(binaryToken);
       }
 
-      const checkResult = checkDownloader(path.dirname(resolvedBinaryPath));
-      if (!checkResult.exists) {
-        return { success: false, error: 'Downloader binary not found or invalid.' };
+      if (!resolvedBinaryPath) {
+        const bundledResult = checkBundledAndRegister();
+        if (!bundledResult.exists) {
+          return { success: false, error: 'No downloader binary found. Please set it up in the download modal.' };
+        }
+        resolvedBinaryPath = resolveBinaryPath(bundledResult.token);
       }
 
       const basePath = path.join(downloadPath || path.join(require('os').homedir(), 'Downloads'), 'Nexube');
@@ -229,8 +229,8 @@ function register(mainWindow) {
           captured.m3u8Url, captured.referer, JSON.stringify(captured.cookies), fileDir, quality || 'best', source.id, episodeTitle || null, existing.id
         );
 
-        const result = runDownload({
-          binaryPath: checkResult.binaryPath,
+      const result = runDownload({
+        binaryPath,
           m3u8Url: captured.m3u8Url,
           name: safeName,
           downloadPath: fileDir,
@@ -284,7 +284,7 @@ function register(mainWindow) {
       });
 
       const result = runDownload({
-        binaryPath: checkResult.binaryPath,
+        binaryPath: resolvedBinaryPath,
         m3u8Url: captured.m3u8Url,
         name: safeName,
         downloadPath: fileDir,

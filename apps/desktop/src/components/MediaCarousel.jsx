@@ -18,7 +18,7 @@ function MediaCarousel({ title, items, onSelect, showProgress = false, getProgre
 
   return (
     <div className="mb-xl overflow-y-visible">
-      <div className="flex items-center justify-between mb-xl px-lg">
+      <div className="flex flex gap-md overflow-x-auto px-xl justify-between items-center">
         <h2 className="text-xl font-bold text-text-primary">{title}</h2>
         <div className="flex gap-xs">
           <button
@@ -38,7 +38,7 @@ function MediaCarousel({ title, items, onSelect, showProgress = false, getProgre
 
       <div
         ref={scrollRef}
-        className="carousel-row px-lg"
+        className="carousel-row gap-md overflow-x-auto px-xl py-md"
       >
         {items.map((item) => (
           <MediaCard

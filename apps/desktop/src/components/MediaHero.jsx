@@ -56,6 +56,7 @@ export default function MediaHero({
 
           <div className="flex items-center gap-md mb-md text-sm">
             {details?.voteAverage > 0 && <span className="text-success font-medium">{details.voteAverage.toFixed(1)}</span>}
+            {details?.certification && <span className="px-xs py-2xs bg-surface-hover rounded text-xs font-medium text-text-primary">{details.certification}</span>}
             {details?.releaseDate && <span>{new Date(details.releaseDate).getFullYear()}</span>}
             {details?.runtime && <span>{details.runtime} min</span>}
             {details?.type === 'tv' && <span>{details.numberOfSeasons} Seasons</span>}

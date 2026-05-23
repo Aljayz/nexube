@@ -6,6 +6,34 @@ const crypto = require('crypto');
 
 const activeProcs = new Map();
 
+// Session token registry — renderer never sees raw binary paths
+const binaryTokenRegistry = new Map();
+
+function generateToken() {
+  return crypto.randomUUID();
+}
+
+function registerBinaryPath(binaryPath) {
+  const token = generateToken();
+  binaryTokenRegistry.set(token, binaryPath);
+  // Auto-expire tokens after 10 minutes
+  setTimeout(() => binaryTokenRegistry.delete(token), 10 * 60 * 1000);
+  return token;
+}
+
+function resolveBinaryPath(token) {
+  return binaryTokenRegistry.get(token) || null;
+}
+
+function checkBundledAndRegister() {
+  const bundledPath = getBundledBinaryPath();
+  if (!bundledPath) return { exists: false, reason: 'no_bundled' };
+  const result = _checkDownloader(path.dirname(bundledPath));
+  if (!result.exists) return result;
+  const token = registerBinaryPath(result.binaryPath);
+  return { exists: true, token };
+}
+
 function getBundledBinaryPath() {
   const platform = process.platform;
   const resourcePath = process.resourcesPath || path.resolve(__dirname, '../../resources');
@@ -24,7 +52,7 @@ function getBundledBinaryPath() {
   return null;
 }
 
-function checkDownloader(folderPath) {
+function _checkDownloader(folderPath) {
   if (!folderPath) return { exists: false, reason: 'no_folder' };
   let entries;
   try {
@@ -50,6 +78,13 @@ function checkDownloader(folderPath) {
   });
   if (!binary) return { exists: false, reason: 'no_executable' };
   return { exists: true, binaryPath: path.join(folderPath, binary) };
+}
+
+function checkDownloader(folderPath) {
+  const result = _checkDownloader(folderPath);
+  if (!result.exists) return result;
+  const token = registerBinaryPath(result.binaryPath);
+  return { exists: true, token };
 }
 
 function runDownload({
@@ -583,4 +618,6 @@ module.exports = {
   getBundledBinaryPath,
   isDownloadActive,
   cleanupPartialFiles,
+  resolveBinaryPath,
+  checkBundledAndRegister,
 };

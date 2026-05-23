@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Billboard from '../components/Billboard';
 import MediaCarousel from '../components/MediaCarousel';
 import LoadingScreen from '../components/LoadingScreen';
@@ -21,6 +21,7 @@ function HomeView({ activeProfile, onSelect }) {
   const [similarItems, setSimilarItems] = useState([]);
   const [similarLabel, setSimilarLabel] = useState('');
   const [continueWatching, setContinueWatching] = useState([]);
+  const profileRef = useRef(profileId);
 
   const mapItem = (item, type) => ({
     id: `${type}-${item.id}`,
@@ -37,21 +38,31 @@ function HomeView({ activeProfile, onSelect }) {
     popularity: item.popularity,
     originalLanguage: item.original_language,
     genreIds: item.genre_ids || [],
+    adult: item.adult || false,
+    certification: item.certification || null,
     isAnime: item.original_language === 'ja' && item.genre_ids?.includes(16),
   });
+
+  function getDiscoverParams(sortBy, extra = {}) {
+    return { sort_by: sortBy, kidsMode: activeProfile?.isKids, ...extra };
+  }
 
   async function fetchData(isRetry = false) {
     if (!isRetry) setError(null);
 
     try {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const fmt = (d) => d.toISOString().split('T')[0];
+
       const [trendingRes, popularRes, topRatedRes, nowPlayingRes, trendingTVRes, popularTVRes, topRatedTVRes] = await Promise.allSettled([
-        window.electron?.tmdb?.fetch('/trending/movie/week'),
-        window.electron?.tmdb?.fetch('/movie/popular'),
-        window.electron?.tmdb?.fetch('/movie/top_rated'),
-        window.electron?.tmdb?.fetch('/movie/now_playing'),
-        window.electron?.tmdb?.fetch('/trending/tv/week'),
-        window.electron?.tmdb?.fetch('/tv/popular'),
-        window.electron?.tmdb?.fetch('/tv/top_rated'),
+        window.electron?.tmdb?.fetch('/discover/movie', getDiscoverParams('popularity.desc')),
+        window.electron?.tmdb?.fetch('/discover/movie', getDiscoverParams('vote_count.desc')),
+        window.electron?.tmdb?.fetch('/discover/movie', getDiscoverParams('vote_average.desc', { 'vote_count.gte': 200 })),
+        window.electron?.tmdb?.fetch('/discover/movie', getDiscoverParams('primary_release_date.desc', { 'primary_release_date.gte': fmt(thirtyDaysAgo), 'primary_release_date.lte': fmt(now) })),
+        window.electron?.tmdb?.fetch('/discover/tv', getDiscoverParams('popularity.desc')),
+        window.electron?.tmdb?.fetch('/discover/tv', getDiscoverParams('vote_count.desc')),
+        window.electron?.tmdb?.fetch('/discover/tv', getDiscoverParams('vote_average.desc', { 'vote_count.gte': 200 })),
       ]);
 
       const trendingItems = trendingRes.status === 'fulfilled' && trendingRes.value?.results
@@ -95,9 +106,13 @@ function HomeView({ activeProfile, onSelect }) {
       if (trendingItems.length > 0) {
         const featured = trendingItems[Math.floor(Math.random() * Math.min(5, trendingItems.length))];
         if (featured.backdropPath) {
+          const cert = await window.electron?.tmdb?.getCertification('movie', featured.tmdbId);
+          featured.certification = cert || null;
           setBillboard(featured);
         }
       }
+
+      enrichCertifications([trendingItems, popularItems, topRatedItems, nowPlayingItems, trendingTVItems, popularTVItems, topRatedTVItems], setTrending, setPopular, setTopRated, setNowPlaying, setTrendingTV, setPopularTV, setTopRatedTV);
     } catch (err) {
       setError(err.message || 'Failed to load content');
     } finally {
@@ -105,9 +120,49 @@ function HomeView({ activeProfile, onSelect }) {
     }
   }
 
+  async function enrichCertifications(arrays, ...setters) {
+    const visible = arrays.map((arr) => arr.slice(0, 6)).flat();
+    const seen = new Set();
+    const toFetch = visible.filter((item) => {
+      if (item.certification || seen.has(item.tmdbId)) return false;
+      seen.add(item.tmdbId);
+      return true;
+    });
+    if (toFetch.length === 0) return;
+
+    const results = await Promise.allSettled(
+      toFetch.map((item) =>
+        window.electron?.tmdb?.getCertification(item.type, item.tmdbId)
+      )
+    );
+
+    const certMap = {};
+    toFetch.forEach((item, i) => {
+      if (results[i].status === 'fulfilled' && results[i].value) {
+        certMap[item.tmdbId] = results[i].value;
+      }
+    });
+
+    if (Object.keys(certMap).length === 0) return;
+
+    const updateItems = (items) =>
+      items.map((i) => (certMap[i.tmdbId] ? { ...i, certification: certMap[i.tmdbId] } : i));
+
+    arrays.forEach((arr, idx) => {
+      const updated = updateItems(arr);
+      const setter = setters[idx];
+      if (setter) setter(updated);
+    });
+  }
+
   useEffect(() => {
-    fetchData(retryCount > 0);
-  }, [retryCount]);
+    profileRef.current = profileId;
+    setLoading(true);
+    setHasCached(false);
+    setError(null);
+    setBillboard(null);
+    fetchData(false);
+  }, [profileId]);
 
   useEffect(() => {
     if (!hasCached) return;
@@ -158,7 +213,7 @@ function HomeView({ activeProfile, onSelect }) {
         if (!mounted || !favorites || favorites.length === 0) return;
         const latest = favorites[0];
         const endpoint = latest.type === 'tv' ? `/tv/${latest.tmdb_id}/similar` : `/movie/${latest.tmdb_id}/similar`;
-        const res = await window.electron?.tmdb?.fetch(endpoint);
+        const res = await window.electron?.tmdb?.fetch(endpoint, { kidsMode: activeProfile?.isKids });
         if (!mounted || !res?.results || res.results.length === 0) return;
         setSimilarItems(res.results.map((i) => mapItem(i, latest.type)));
         setSimilarLabel(`Similar to ${latest.title}`);

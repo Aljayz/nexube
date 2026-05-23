@@ -2,7 +2,12 @@ const { ipcMain, BrowserWindow } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const ElectronStore = require('electron-store');
 
-const store = new ElectronStore({ name: 'updater-settings' });
+let _store = null;
+function getStore() {
+  if (!_store) _store = new ElectronStore({ name: 'updater-settings' });
+  return _store;
+}
+
 const UPDATE_CHANNEL = 'update';
 
 function getWin() {
@@ -17,7 +22,7 @@ function send(channel, ...args) {
 }
 
 function register() {
-  const isEnabled = () => store.get('autoUpdaterEnabled', true);
+  const isEnabled = () => getStore().get('autoUpdaterEnabled', true);
 
   autoUpdater.autoDownload = false;
 
@@ -88,7 +93,7 @@ function register() {
   });
 
   ipcMain.handle('update:setEnabled', async (_, enabled) => {
-    store.set('autoUpdaterEnabled', enabled);
+    getStore().set('autoUpdaterEnabled', enabled);
     return { success: true };
   });
 

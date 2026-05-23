@@ -33,9 +33,10 @@ function NotificationView({ activeProfile, onSelect }) {
       const movies = favorites.filter((f) => f.type === 'movie');
       const tvShows = favorites.filter((f) => f.type === 'tv');
 
+      const kidsParams = { kidsMode: activeProfile?.isKids };
       const moviePromises = movies.map(async (movie) => {
         try {
-          const details = await window.electron?.tmdb?.fetch(`/movie/${movie.tmdb_id}`);
+          const details = await window.electron?.tmdb?.fetch(`/movie/${movie.tmdb_id}`, kidsParams);
           if (!details) return null;
 
           const now = new Date();
@@ -76,7 +77,7 @@ function NotificationView({ activeProfile, onSelect }) {
 
       const tvPromises = tvShows.map(async (show) => {
         try {
-          const details = await window.electron?.tmdb?.fetch(`/tv/${show.tmdb_id}`);
+          const details = await window.electron?.tmdb?.fetch(`/tv/${show.tmdb_id}`, kidsParams);
           if (!details) return null;
 
           const updates = [];

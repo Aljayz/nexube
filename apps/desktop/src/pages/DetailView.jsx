@@ -45,7 +45,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
     toggleFavorite,
     toggleSaved,
     updateSelectedSource,
-  } = useDetailData(media, profileId, retryCount, activeProfile?.preferredSource);
+  } = useDetailData(media, profileId, retryCount, activeProfile?.preferredSource, activeProfile?.isKids);
 
   const [dubMode, setDubMode] = useState(() => {
     try {
@@ -177,13 +177,16 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
 
       <div className="border-t border-border/50 mt-16 mb-xl" />
 
-      <div className="px-xl py-xl">
-        <div className="max-w-3xl">
-          <h2 className="text-lg font-bold text-text-primary mb-md">Overview</h2>
-          <p className="text-text-muted leading-relaxed">{details?.overview || 'No overview available.'}</p>
+      <div className="py-xl">
+        <div className="px-xl">
+          <div className="max-w-3xl">
+            <h2 className="text-lg font-bold text-text-primary mb-md">Overview</h2>
+            <p className="text-text-muted leading-relaxed">{details?.overview || 'No overview available.'}</p>
+          </div>
         </div>
 
-        <PlayerSection
+        <div className="px-xl space-y-xl">
+          <PlayerSection
           details={details}
           mediaType={media.type}
           currentEpisode={currentEpisode}
@@ -229,7 +232,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
         />
 
         {trailerUrl && (
-          <div className="mt-xl">
+          <div>
             <div className="relative aspect-video rounded-card overflow-hidden bg-black">
               {trailerLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
@@ -262,21 +265,14 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
             onPlayEpisode={handlePlay}
           />
         )}
-
-        {similarItems.length > 0 && (
-          <div className="mt-2xl pt-xl border-t border-border/50">
-            <MediaCarousel
-              title={`Similar ${media.type === 'movie' ? 'Movies' : 'Shows'}`}
-              items={similarItems}
-              onSelect={onSelect}
-            />
-          </div>
-        )}
+        </div>
 
         {relatedMovies.length > 0 && (
           <div className="mt-2xl pt-xl border-t border-border/50">
-            <h2 className="text-lg font-bold text-text-primary mb-md">More in this Collection</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-md">
+            <div className="px-xl">
+              <h2 className="text-lg font-bold text-text-primary mb-md">More in this Collection</h2>
+            </div>
+            <div className="flex gap-md overflow-x-auto px-xl py-md">
               {relatedMovies.map((movie) => (
                 <MediaCard
                   key={movie.id}
@@ -285,6 +281,16 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {similarItems.length > 0 && (
+          <div className="mt-2xl pt-xl border-t border-border/50">
+            <MediaCarousel
+              title={`Similar ${media.type === 'movie' ? 'Movies' : 'Shows'}`}
+              items={similarItems}
+              onSelect={onSelect}
+            />
           </div>
         )}
       </div>

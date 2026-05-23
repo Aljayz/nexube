@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell } = require('electron');
 const path = require('path');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
@@ -56,6 +56,8 @@ const BLOCKED_HOSTS = [
   '*://tmstr4.neonhorizonworkshops.com/*',
 ];
 
+app.setName('Nexube');
+app.setAppUserModelId('com.nexube.app');
 app.disableHardwareAcceleration();
 const { register: registerStorage } = require('./ipc/storage');
 const { register: registerPlayer } = require('./ipc/player');
@@ -76,9 +78,6 @@ function getMainWindow() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, '../public/Logo.png');
-  const icon = nativeImage.createFromPath(iconPath);
-
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -87,7 +86,6 @@ function createWindow() {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     frame: process.platform === 'darwin',
     backgroundColor: '#08080C',
-    icon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -197,10 +195,6 @@ function createWindow() {
 app.commandLine.appendSwitch('max-old-space-size', '256');
 app.commandLine.appendSwitch('renderer-process-limit', '3');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,InsecureCSPWarning');
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('in-process-gpu');
 
 app.whenReady().then(() => {
   getDatabase();

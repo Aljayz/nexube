@@ -30,7 +30,7 @@ export function buildMediaData(details) {
   };
 }
 
-export function useDetailData(media, profileId, retryCount, preferredSource) {
+export function useDetailData(media, profileId, retryCount, preferredSource, isKids) {
   const mediaId = getMediaId(media.type, media.tmdbId);
   const [details, setDetails] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -52,10 +52,12 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
 
       try {
         const endpoint = media.type === 'movie' ? `/movie/${media.tmdbId}` : `/tv/${media.tmdbId}`;
+        const appendKey = media.type === 'movie' ? 'images,release_dates' : 'images,content_ratings';
 
+        const kidsParams = { kidsMode: isKids };
         const [detailsRes, videosRes] = await Promise.allSettled([
-          window.electron?.tmdb?.fetch(endpoint, { append_to_response: 'images' }),
-          window.electron?.tmdb?.fetch(`${endpoint}/videos`),
+          window.electron?.tmdb?.fetch(endpoint, { ...kidsParams, append_to_response: appendKey }),
+          window.electron?.tmdb?.fetch(`${endpoint}/videos`, kidsParams),
         ]);
 
         if (detailsRes.status === 'rejected') {
@@ -63,6 +65,17 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
         }
 
         if (detailsRes.value) {
+          let certification = null;
+          if (media.type === 'movie' && detailsRes.value.release_dates?.results) {
+            const us = detailsRes.value.release_dates.results.find((r) => r.iso_3166_1 === 'US');
+            if (us?.release_dates?.length > 0) {
+              certification = us.release_dates[0].certification || null;
+            }
+          } else if (media.type === 'tv' && detailsRes.value.content_ratings?.results) {
+            const us = detailsRes.value.content_ratings.results.find((r) => r.iso_3166_1 === 'US');
+            certification = us?.rating || null;
+          }
+
           const source = getSourceForMedia({
             genres: detailsRes.value.genres,
             originalLanguage: detailsRes.value.original_language,
@@ -77,6 +90,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
             numberOfSeasons: detailsRes.value.number_of_seasons,
             numberOfEpisodes: detailsRes.value.number_of_episodes,
             isAnime: detailsRes.value.original_language === 'ja' && detailsRes.value.genres?.some((g) => g.id === 16),
+            certification,
             selectedSource: source,
           };
           setDetails(enrichedDetails);
@@ -132,7 +146,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
 
   useEffect(() => {
     if (media.type === 'tv' && selectedSeason > 0) {
-      window.electron?.tmdb?.fetch(`/tv/${media.tmdbId}/season/${selectedSeason}`)
+      window.electron?.tmdb?.fetch(`/tv/${media.tmdbId}/season/${selectedSeason}`, { kidsMode: isKids })
         .then((res) => res?.episodes && setEpisodes(res.episodes))
         .catch((err) => console.error('Failed to fetch episodes:', err));
     }
@@ -141,7 +155,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
   useEffect(() => {
     let mounted = true;
     const endpoint = media.type === 'movie' ? `/movie/${media.tmdbId}/similar` : `/tv/${media.tmdbId}/similar`;
-    window.electron?.tmdb?.fetch(endpoint)
+    window.electron?.tmdb?.fetch(endpoint, { kidsMode: isKids })
       .then((res) => {
         if (!mounted || !res?.results) return;
         setSimilarItems(
@@ -160,6 +174,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
             popularity: p.popularity,
             originalLanguage: p.original_language,
             genreIds: p.genre_ids || [],
+            certification: p.certification || null,
             isAnime: p.original_language === 'ja',
           }))
         );
@@ -171,10 +186,10 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
   useEffect(() => {
     if (media.type !== 'movie') return;
 
-    window.electron?.tmdb?.fetch(`/movie/${media.tmdbId}`, { append_to_response: 'belongs_to_collection' })
+    window.electron?.tmdb?.fetch(`/movie/${media.tmdbId}`, { kidsMode: isKids, append_to_response: 'belongs_to_collection' })
       .then((collectionsRes) => {
         if (!collectionsRes?.belongs_to_collection?.id) return;
-        return window.electron?.tmdb?.fetch(`/collection/${collectionsRes.belongs_to_collection.id}`);
+        return window.electron?.tmdb?.fetch(`/collection/${collectionsRes.belongs_to_collection.id}`, { kidsMode: isKids });
       })
       .then((collectionRes) => {
         if (!collectionRes?.parts) return;
@@ -196,6 +211,7 @@ export function useDetailData(media, profileId, retryCount, preferredSource) {
               popularity: p.popularity,
               originalLanguage: p.original_language,
               genreIds: p.genre_ids || [],
+              certification: p.certification || null,
               isAnime: p.original_language === 'ja',
             }))
         );

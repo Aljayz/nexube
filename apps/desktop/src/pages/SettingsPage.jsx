@@ -79,6 +79,16 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
       <h1 className="text-2xl font-bold text-text-primary mb-lg">Settings</h1>
 
       <div className="space-y-lg">
+        { isMaster && (<SettingsSection icon={Settings} title="General" description="API keys and global preferences">
+          <GeneralSettings
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+            kidsFilterCountry={kidsFilterCountry}
+            setKidsFilterCountry={setKidsFilterCountry}
+            onSaveKidsCountry={saveKidsFilterCountry}
+            activeProfile={activeProfile}
+          />
+        </SettingsSection>)}
         <SettingsSection icon={User} title="My Profile" description="Manage your avatar and security settings">
           <ProfileSettings activeProfile={activeProfile} onSaved={handleProfilesSaved} />
         </SettingsSection>
@@ -101,17 +111,6 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
 
         {isMaster && (
           <>
-            <SettingsSection icon={Settings} title="General" description="API keys and global preferences">
-              <GeneralSettings
-                apiKey={apiKey}
-                setApiKey={setApiKey}
-                kidsFilterCountry={kidsFilterCountry}
-                setKidsFilterCountry={setKidsFilterCountry}
-                onSaveKidsCountry={saveKidsFilterCountry}
-                activeProfile={activeProfile}
-              />
-            </SettingsSection>
-
             <SettingsSection icon={Users} title="Members" description="Add, edit, or remove profiles">
               <ProfilesSettings
                 profiles={profiles}

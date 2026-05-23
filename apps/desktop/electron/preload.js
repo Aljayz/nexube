@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electron', {
   tmdb: {
     fetch: (endpoint, params) => ipcRenderer.invoke('tmdb:fetch', endpoint, params),
     getImageUrl: (path, size) => ipcRenderer.invoke('tmdb:getImageUrl', path, size),
+    getCertification: (mediaType, tmdbId) => ipcRenderer.invoke('tmdb:getCertification', mediaType, tmdbId),
   },
   profiles: {
     createProfile: (input) => ipcRenderer.invoke('profile:create', input),

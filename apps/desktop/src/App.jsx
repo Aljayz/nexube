@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { applyAccentColor } from './hooks/useSettings';
 import CustomTitlebar from './components/CustomTitlebar';
 import SplashScreen from './components/SplashScreen';
@@ -11,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import LoadingScreen from './components/LoadingScreen';
 import NoticeDialog from './components/NoticeDialog';
 import UpdateNotification from './components/UpdateNotification';
+import UpdateApiKeyModal from './components/UpdateApiKeyModal';
 
 const HomeView = lazy(() => import('./pages/HomeView'));
 const SearchView = lazy(() => import('./pages/SearchView'));
@@ -54,6 +56,8 @@ function App() {
   const [showNotice, setShowNotice] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [profileVersion, setProfileVersion] = useState(0);
+  const [apiKeyInvalid, setApiKeyInvalid] = useState(null);
+  const [showUpdateApiKey, setShowUpdateApiKey] = useState(false);
 
   const pageRef = useRef(page);
   const selectedRef = useRef(selected);
@@ -107,6 +111,31 @@ function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  const checkApiKeyHealth = useCallback(async () => {
+    try {
+      const apiKey = await window.electron?.storage?.get('tmdbApiKey');
+      if (!apiKey) {
+        setApiKeyInvalid(true);
+        return;
+      }
+      await window.electron?.tmdb?.fetch('/authentication', {});
+      setApiKeyInvalid(false);
+    } catch {
+      setApiKeyInvalid(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !needsSetup && !showProfileSelect && activeProfile) {
+      checkApiKeyHealth();
+    }
+  }, [loading, needsSetup, showProfileSelect, activeProfile, checkApiKeyHealth]);
+
+  const handleApiKeyUpdated = useCallback(() => {
+    setApiKeyInvalid(false);
+    checkApiKeyHealth();
+  }, [checkApiKeyHealth]);
 
   const navigate = useCallback((pg, data = null) => {
     setNavStack((prev) => [...prev, { page: pageRef.current, selected: selectedRef.current }]);
@@ -315,6 +344,28 @@ function App() {
             </div>
           )}
 
+          {apiKeyInvalid && !showUpdateApiKey && (
+            <div className="flex items-center gap-md px-lg py-sm bg-danger/10 border-b border-danger/20">
+              <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
+              <p className="text-sm text-text-primary flex-1">
+                Your TMDB API key is invalid. Content may not load correctly.
+              </p>
+              <button
+                onClick={() => setShowUpdateApiKey(true)}
+                className="btn-primary text-sm whitespace-nowrap"
+              >
+                Update API Key
+              </button>
+            </div>
+          )}
+
+          {showUpdateApiKey && (
+            <UpdateApiKeyModal
+              onClose={() => setShowUpdateApiKey(false)}
+              onSaved={handleApiKeyUpdated}
+            />
+          )}
+
           {showSearch && (
             <Suspense fallback={<PageLoader />}>
               <SearchView
@@ -333,19 +384,20 @@ function App() {
           <main className="flex-1 overflow-y-auto">
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
-                {page === 'home' && <HomeView activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
-                {page === 'library' && <LibraryView activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
+                {page === 'home' && <HomeView key={activeProfile?.id} activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
+                {page === 'library' && <LibraryView key={activeProfile?.id} activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
                 {page === 'detail' && selected && (
                   <DetailView
+                    key={activeProfile?.id}
                     media={selected}
                     activeProfile={activeProfile}
                     onBack={navigateBack}
                     onSelect={(item) => navigate('detail', item)}
                   />
                 )}
-                {page === 'downloads' && <DownloadsPage activeProfile={activeProfile} />}
-                {page === 'notifications' && <NotificationView activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
-                {page === 'settings' && <SettingsPage activeProfile={activeProfile} onProfileUpdated={handleProfileUpdated} />}
+                {page === 'downloads' && <DownloadsPage key={activeProfile?.id} activeProfile={activeProfile} />}
+                {page === 'notifications' && <NotificationView key={activeProfile?.id} activeProfile={activeProfile} onSelect={(item) => navigate('detail', item)} />}
+                {page === 'settings' && <SettingsPage key={activeProfile?.id} activeProfile={activeProfile} onProfileUpdated={handleProfileUpdated} />}
               </Suspense>
             </ErrorBoundary>
           </main>

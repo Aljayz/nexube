@@ -52,7 +52,7 @@ function SearchView({ query, onQueryChange, onClose, onSelect, activeProfile }) 
     setError(null);
 
     try {
-      const data = await window.electron?.tmdb?.fetch('/search/multi', { query: q });
+      const data = await window.electron?.tmdb?.fetch('/search/multi', { query: q, kidsMode: activeProfile?.isKids });
 
       if (!data) {
         throw new Error('No response from TMDB API');

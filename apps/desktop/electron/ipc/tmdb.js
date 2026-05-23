@@ -37,6 +37,21 @@ function _evictCache() {
   }
 }
 
+const KIDS_CERT_MAP = {
+  US: { lte: 'PG' },
+  GB: { lte: 'PG' },
+  DE: { lte: '6' },
+  JP: { lte: 'G' },
+  AU: { lte: 'PG' },
+  CA: { lte: 'PG' },
+  FR: { lte: 'TP' },
+  IT: { lte: 'T' },
+  ES: { lte: 'A' },
+  BR: { lte: '10' },
+  IN: { lte: 'U' },
+  KR: { lte: 'All' },
+};
+
 async function tmdbFetch(endpoint, params = {}) {
   await _acquireSlot();
   try {
@@ -45,7 +60,17 @@ async function tmdbFetch(endpoint, params = {}) {
       throw new Error('TMDB API key not set');
     }
 
-    const cacheKey = `${endpoint}?${JSON.stringify(params)}`;
+    const { kidsMode, ...apiParams } = params;
+
+    if (kidsMode) {
+      const country = store.get('kidsFilterCountry', 'US');
+      const cert = KIDS_CERT_MAP[country] || KIDS_CERT_MAP.US;
+      apiParams.include_adult = false;
+      apiParams.certification_country = country;
+      apiParams['certification.lte'] = cert.lte;
+    }
+
+    const cacheKey = `${endpoint}?${JSON.stringify(apiParams)}`;
     const cached = _tmdbCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < TMDB_CACHE_TTL) {
       return cached.data;
@@ -53,9 +78,9 @@ async function tmdbFetch(endpoint, params = {}) {
 
     const url = new URL(`${TMDB_BASE}${endpoint}`);
     url.searchParams.append('api_key', apiKey);
-    url.searchParams.append('language', params.language || 'en-US');
+    url.searchParams.append('language', apiParams.language || 'en-US');
 
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(apiParams).forEach(([key, value]) => {
       if (key !== 'language') {
         url.searchParams.append(key, String(value));
       }
@@ -77,9 +102,31 @@ async function tmdbFetch(endpoint, params = {}) {
   }
 }
 
+function getUsCertification(data, mediaType) {
+  if (mediaType === 'tv' && data?.results) {
+    const us = data.results.find((r) => r.iso_3166_1 === 'US');
+    return us?.rating || null;
+  }
+  if (data?.results) {
+    const us = data.results.find((r) => r.iso_3166_1 === 'US');
+    if (us?.release_dates?.length > 0) {
+      return us.release_dates[0].certification || null;
+    }
+  }
+  return null;
+}
+
 function register() {
   ipcMain.handle('tmdb:fetch', async (_, endpoint, params) => {
     return tmdbFetch(endpoint, params);
+  });
+
+  ipcMain.handle('tmdb:getCertification', async (_, mediaType, tmdbId) => {
+    const endpoint = mediaType === 'tv'
+      ? `/tv/${tmdbId}/content_ratings`
+      : `/movie/${tmdbId}/release_dates`;
+    const data = await tmdbFetch(endpoint);
+    return getUsCertification(data, mediaType);
   });
 
   ipcMain.handle('tmdb:getImageUrl', (_, path, size = 'w500') => {

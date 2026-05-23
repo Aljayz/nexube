@@ -49,6 +49,7 @@ function Billboard({ media, onPlay, onInfo }) {
               {media.voteAverage.toFixed(1)}
             </span>
           )}
+          {media.certification && <span className="px-xs py-2xs bg-surface-hover rounded text-xs font-medium text-text-primary">{media.certification}</span>}
           {media.releaseDate && (
             <span>{new Date(media.releaseDate).getFullYear()}</span>
           )}
