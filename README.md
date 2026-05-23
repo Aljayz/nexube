@@ -116,7 +116,7 @@ Nexube relies on [The Movie Database (TMDB)](https://www.themoviedb.org) to fetc
 10. **Copy the API Key Value**
     After clicking the highlighted text, a section with data will expand below. Look for the random string of characters in the **"API Key"** field. Carefully copy this entire value—this is what you'll paste into Nexube.
     ![Copy API Key Value](screenshots/setup-view/setup/step-8.png)
-
+> `Security Note:` API keys should always be kept strictly confidential. The key shown in this example has expired and is no longer active.
 ---
 
 ## 🚀 Quick Start
