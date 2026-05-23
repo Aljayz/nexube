@@ -100,6 +100,28 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build vid-dl binary (macOS)
+        working-directory: vid-dl-cli-only
+        run: |
+          pip install -r requirements.txt pyinstaller pillow
+          python -m PyInstaller \
+            --noconfirm --onedir --clean --noupx \
+            --icon=icon.png \
+            --exclude-module pycryptodomex.selftest \
+            --exclude-module pycryptodomex.tests \
+            --target-arch universal2 \
+            --name "vid-dl" \
+            cli.py
+
+      - name: Copy vid-dl to resources
+        run: |
+          mkdir -p apps/desktop/resources/vid-dl/darwin/vid-dl
+          cp -r vid-dl-cli-only/dist/vid-dl/* apps/desktop/resources/vid-dl/darwin/vid-dl/
+
       - name: Build macOS installer
         working-directory: apps/desktop
         run: pnpm electron:build
