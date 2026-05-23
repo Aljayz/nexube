@@ -1,7 +1,7 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const Store = require('electron-store');
+const Store = require('../lib/store');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 
 const store = new Store({ name: 'nexube-settings' });
@@ -41,12 +41,8 @@ function register() {
     const dbShmSize = fs.existsSync(dbPath + '-shm') ? fs.statSync(dbPath + '-shm').size : 0;
     const totalDbSize = dbSize + dbWalSize + dbShmSize;
 
-    const electronStorePath = path.join(
-      process.platform === 'win32' ? process.env.APPDATA : process.platform === 'darwin' ? path.join(process.env.HOME, 'Library', 'Application Support') : path.join(process.env.HOME, '.config'),
-      'nexube-desktop',
-      'nexube-settings.json'
-    );
-    const storeSize = fs.existsSync(electronStorePath) ? fs.statSync(electronStorePath).size : 0;
+    const storePath = path.join(app.getPath('userData'), 'nexube-settings.json');
+    const storeSize = fs.existsSync(storePath) ? fs.statSync(storePath).size : 0;
 
     return {
       rss: formatBytes(mem.rss),

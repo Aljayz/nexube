@@ -247,8 +247,8 @@ app.whenReady().then(() => {
   createWindow();
 
   setTimeout(() => {
-    const ElectronStore = require('electron-store');
-    const updaterStore = new ElectronStore({ name: 'updater-settings' });
+    const Store = require('./lib/store');
+    const updaterStore = new Store({ name: 'updater-settings' });
     if (updaterStore.get('autoUpdaterEnabled', true)) {
       const { autoUpdater } = require('electron-updater');
       autoUpdater.checkForUpdates().catch(() => {});

@@ -1,5 +1,5 @@
 const { ipcMain } = require('electron');
-const Store = require('electron-store');
+const Store = require('../lib/store');
 
 let _store = null;
 function getStore() {

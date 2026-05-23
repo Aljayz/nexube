@@ -1,10 +1,10 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const ElectronStore = require('electron-store');
+const Store = require('../lib/store');
 
 let _store = null;
 function getStore() {
-  if (!_store) _store = new ElectronStore({ name: 'updater-settings' });
+  if (!_store) _store = new Store({ name: 'updater-settings' });
   return _store;
 }
 
