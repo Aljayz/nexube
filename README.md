@@ -33,6 +33,9 @@
 - **Cross-Platform** — Native installers for Windows (NSIS), Linux (AppImage, deb, pacman(soon)), and macOS (DMG)(soon)
 
 ---
+## Download Link
+[Link](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
+---
 
 ## 📸 Screenshots
 
