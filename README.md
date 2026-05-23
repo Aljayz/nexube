@@ -8,26 +8,26 @@
 
 ---
 
-## ✨ Features
+## Features
 
-### 🎬 Core Experience
+### Core Experience
 - **Multi-Source Streaming Player** — Switch seamlessly between Videasy, VidSrc, 2Embed, and AllManga (anime) without leaving the player
 - **Picture-in-Picture Mode** — Native PiP popout with cross-platform window frame configuration
 - **Pop-up & Redirect Blocking** — Webview-level interception with per-session stats tracking
 - **HLS Download Manager** — Stream capture via bundled `vid-dl` binary (PyInstaller), with progress tracking and queue management
 
-### 👥 Multi-Profile System
+### Multi-Profile System
 - **Three Profile Types** — Master, Kids, and Standard profiles, each with independent settings
 - **PIN/Password Protection** — Secure adult profiles while keeping Kids Mode accessible
 - **Age-Based Content Filtering** — Automatic content restriction in Kids Mode
 - **Per-Profile Settings** — Custom accent colors, download paths, preferred streaming source, auto-mark-watched threshold, and search history
 
-### 📚 Content Management
+### Content Management
 - **Watchlist, History & Progress Tracking** — SQLite-persistent per profile, pick up where you left off
 - **TMDB Integration** — Browse trending, popular, and top-rated content with rich metadata
 - **Smart Search** — Search across movies and TV shows with history per profile
 
-### 🛠️ Under the Hood
+### Under the Hood
 - **In-App Feedback System** — Report issues directly via serverless proxy → GitHub Issues
 - **Keyboard-Driven Navigation** — Full shortcut support for power users
 - **Cross-Platform** — Native installers for Windows (NSIS), Linux (AppImage, deb, pacman(soon)), and macOS (DMG)(soon)
@@ -35,10 +35,11 @@
 ---
 ## Download Link
 [Link](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
+![GitHub release (latest by date)](https://shields.io)
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <details>
 <summary><strong>Setup & Onboarding</strong></summary>
@@ -75,7 +76,7 @@
 
 ---
 
-## 🔑 Obtaining Your TMDB API Key
+## Obtaining Your TMDB API Key
 
 Nexube relies on [The Movie Database (TMDB)](https://www.themoviedb.org) to fetch all content metadata. To get started, you'll need to generate a free personal API key. Follow the steps below carefully.
 
@@ -123,7 +124,7 @@ Nexube relies on [The Movie Database (TMDB)](https://www.themoviedb.org) to fetc
 > `Security Note:` API keys should always be kept strictly confidential. The key shown in this example has expired and is no longer active.
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Node.js** ≥ 18
@@ -149,7 +150,7 @@ pnpm electron:dev
 
 ---
 
-## 📜 Available Scripts
+## Available Scripts
 
 | Command | Description |
 |---|---|
@@ -160,7 +161,7 @@ pnpm electron:dev
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
@@ -176,7 +177,7 @@ pnpm electron:dev
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -190,7 +191,7 @@ pnpm electron:dev
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 nexube/
@@ -225,7 +226,7 @@ nexube/
 
 ---
 
-## 📦 Building for Distribution
+## Building for Distribution
 
 ```bash
 # Linux (AppImage + deb + pacman)
@@ -242,7 +243,7 @@ Outputs are placed in `release/`.
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — System design, data flow, IPC map
 - **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** — Setup guide, coding conventions, contributing
@@ -250,13 +251,13 @@ Outputs are placed in `release/`.
 
 ---
 
-## 🙏 Inspiration
+## Inspiration
 
 This project was inspired by [Streambert](https://github.com/truelockmc/streambert) by [truelockmc](https://github.com/truelockmc). While Nexube is a completely independent implementation written from scratch, their work heavily influenced the concept and initial architecture.
 
 ---
 
-## 📄 License
+## License
 
 **GNU GPL-3.0** — see [LICENSE](./LICENSE) for full details.
 
