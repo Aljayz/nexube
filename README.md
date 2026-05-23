@@ -34,8 +34,7 @@
 
 ---
 ## Download Link
-[Link](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
-![GitHub release (latest by date)](https://shields.io)
+[Latest release (Nexube v0.1.8)](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
 
 ---
 
