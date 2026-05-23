@@ -10,8 +10,7 @@
   },
   "dependencies": {
     "@nexube/types": "workspace:*",
-    "better-sqlite3": "^9.0.0",
-    "electron-store": "^8.1.0"
+    "better-sqlite3": "^9.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
