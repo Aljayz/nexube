@@ -35,6 +35,7 @@ jobs:
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
       - name: Set version from git tag
+        shell: bash
         working-directory: apps/desktop
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
