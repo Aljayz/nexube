@@ -30,7 +30,7 @@
 ### 🛠️ Under the Hood
 - **In-App Feedback System** — Report issues directly via serverless proxy → GitHub Issues
 - **Keyboard-Driven Navigation** — Full shortcut support for power users
-- **Cross-Platform** — Native installers for Windows (NSIS), macOS (DMG), and Linux (AppImage, deb, pacman)
+- **Cross-Platform** — Native installers for Windows (NSIS), Linux (AppImage, deb, pacman(soon)), and macOS (DMG)(soon)
 
 ---
 
