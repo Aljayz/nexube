@@ -122,6 +122,6 @@ This project was inspired by [Streambert](https://github.com/truelockmc/streambe
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
+GNU — see [LICENSE](./LICENSE)
 
 Copyright (c) 2025 Aljayz
