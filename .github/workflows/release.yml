@@ -25,6 +25,9 @@ jobs:
           cache: false
           cache_dependency_path: pnpm-lock.yaml
 
+      - name: Install Python setuptools (required by node-gyp on Python 3.12+)
+        run: pip install setuptools
+
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -60,6 +63,9 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libgl1 libegl1 libdbus-1-3 libxkbcommon-x11-0
+
+      - name: Install Python setuptools (required by node-gyp on Python 3.12+)
+        run: pip install setuptools
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile

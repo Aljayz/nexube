@@ -183,6 +183,14 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+    console.error(`[MAIN] Failed to load page: ${errorDescription} (${errorCode})`);
+  });
+
+  mainWindow.webContents.on('crashed', () => {
+    console.error('[MAIN] Renderer process crashed');
+  });
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
@@ -192,6 +200,9 @@ function createWindow() {
   });
 }
 
+if (process.platform !== 'darwin') {
+  app.commandLine.appendSwitch('no-sandbox');
+}
 app.commandLine.appendSwitch('max-old-space-size', '256');
 app.commandLine.appendSwitch('renderer-process-limit', '3');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,InsecureCSPWarning');

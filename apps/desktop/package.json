@@ -90,6 +90,7 @@
       ],
       "icon": "public/sized",
       "category": "Video",
+
       "desktop": {
         "entry": {
           "Name": "Nexube",
