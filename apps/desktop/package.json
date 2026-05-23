@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "copy-electron": "node scripts/copy-electron.cjs",
     "electron:dev": "pnpm copy-electron && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "pnpm copy-electron && vite build && electron-builder",
+    "electron:build": "pnpm copy-electron && vite build && electron-builder --publish=never",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
