@@ -48,6 +48,7 @@
     "directories": {
       "output": "release"
     },
+    "electronVersion": "28.3.3",
     "files": [
       "dist/**/*",
       "electron/**/*"
