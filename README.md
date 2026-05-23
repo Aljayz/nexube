@@ -7,6 +7,10 @@
 </p>
 
 ---
+## Download Link
+[Latest release (Nexube v0.1.8)](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
+
+---
 
 ## Features
 
@@ -31,10 +35,6 @@
 - **In-App Feedback System** — Report issues directly via serverless proxy → GitHub Issues
 - **Keyboard-Driven Navigation** — Full shortcut support for power users
 - **Cross-Platform** — Native installers for Windows (NSIS), Linux (AppImage, deb, pacman(soon)), and macOS (DMG)(soon)
-
----
-## Download Link
-[Latest release (Nexube v0.1.8)](https://github.com/Aljayz/nexube/releases/tag/v0.1.8)
 
 ---
 
