@@ -37,6 +37,13 @@
 - **Cross-Platform** — Native installers for Windows (NSIS), Linux (AppImage, deb, pacman(soon)), and macOS (DMG)(soon)
 
 ---
+## Future Support
+- **Mobile Support**
+- **macOS Native Build**
+- **Custom Source Plugins**
+- **Subtitle Support**
+
+---
 
 ## Screenshots
 
