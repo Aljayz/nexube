@@ -1,3 +1,21 @@
+html[data-player-fullscreen] {
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+html[data-player-fullscreen] [data-player-fullscreen-container] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background: #000 !important;
+  margin-top: 0 !important;
+  max-height: 100dvh !important;
+}
+
+html[data-player-fullscreen] body {
+  overflow: hidden;
+}
+
 :root {
   --accent: 0 229 255;
   --accent-hover: 0 200 224;

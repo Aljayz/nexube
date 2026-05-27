@@ -206,6 +206,19 @@ function createWindow() {
     console.error('[MAIN] Renderer process crashed');
   });
 
+  mainWindow.webContents.on('did-attach-webview', (_, wc) => {
+    wc.on('enter-html-full-screen', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('webview-enter-fullscreen');
+      }
+    });
+    wc.on('leave-html-full-screen', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('webview-leave-fullscreen');
+      }
+    });
+  });
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
