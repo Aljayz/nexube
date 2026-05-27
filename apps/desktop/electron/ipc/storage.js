@@ -42,4 +42,8 @@ function register() {
   });
 }
 
-module.exports = { register };
+function clearCache() {
+  _store = null;
+}
+
+module.exports = { register, clearCache };

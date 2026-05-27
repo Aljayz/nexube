@@ -16,7 +16,21 @@ class ErrorBoundary extends Component {
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    window.location.reload();
+  };
+
+  handleReport = () => {
+    const error = this.state.error;
+    const body = [
+      `**Error:** ${error?.message || 'Unknown error'}`,
+      ``,
+      `**Stack:**`,
+      '```',
+      error?.stack || 'No stack trace',
+      '```',
+    ].join('\n');
+    const url = `https://github.com/Aljayz/nexube/issues/new?title=${encodeURIComponent('Bug Report: ' + (error?.message || 'Unknown error'))}&body=${encodeURIComponent(body)}`;
+    window.electron?.shell?.openExternal?.(url);
   };
 
   render() {
@@ -28,9 +42,14 @@ class ErrorBoundary extends Component {
           <p className="text-sm text-text-muted mb-lg max-w-sm">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
-          <button onClick={this.handleRetry} className="btn-primary">
-            Try Again
-          </button>
+          <div className="flex gap-md">
+            <button onClick={this.handleRetry} className="btn-primary">
+              Try Again
+            </button>
+            <button onClick={this.handleReport} className="btn-secondary">
+              Report
+            </button>
+          </div>
         </div>
       );
     }

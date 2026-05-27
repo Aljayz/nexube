@@ -290,7 +290,16 @@ function App() {
       {loading ? (
         <SplashScreen />
       ) : needsSetup ? (
-        <SetupScreen onComplete={() => { setNeedsSetup(false); setShowNotice(true); }} />
+        <SetupScreen onComplete={async () => {
+          setNeedsSetup(false);
+          setShowNotice(true);
+          const id = await window.electron?.profiles?.getActiveProfileId();
+          if (id) {
+            const profiles = await window.electron?.profiles?.listProfiles();
+            const profile = profiles?.find((p) => p.id === id);
+            if (profile) setActiveProfile(profile);
+          }
+        }} />
       ) : showSecurityOverlay ? (
         <SecurityOverlay
           target={pinTarget}

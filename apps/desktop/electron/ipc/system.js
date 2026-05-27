@@ -79,6 +79,8 @@ function register() {
       if (fs.existsSync(dbShmPath)) fs.unlinkSync(dbShmPath);
 
       store.clear();
+      const { clearCache: clearStorageCache } = require('./storage');
+      clearStorageCache();
 
       getDatabase();
 

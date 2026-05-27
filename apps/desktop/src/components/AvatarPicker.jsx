@@ -62,6 +62,7 @@ export default function AvatarPicker({ currentAvatar, currentColor, profileName,
           return (
             <button
               key={filename}
+              type="button"
               onClick={() => handleBuiltIn(filename)}
               className={`w-14 h-14 rounded-full overflow-hidden border-2 transition-all ${
                 isSelected
@@ -77,6 +78,7 @@ export default function AvatarPicker({ currentAvatar, currentColor, profileName,
 
       <div className="border-t border-border pt-md">
         <button
+          type="button"
           onClick={handleUpload}
           className="flex items-center gap-sm text-sm text-accent hover:text-accent-hover transition-colors"
         >

@@ -43,13 +43,13 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
     }
 
     if (source.async) {
-      return await source.url(details?.type, details?.tmdbId);
+      return await source.url(details?.type, details?.tmdbId, selectedSeason, episode?.episode_number);
     }
 
     if (episode && source.urlWithEpisode) {
       return source.urlWithEpisode(details?.type, details?.tmdbId, selectedSeason, episode.episode_number);
     }
-    return source.url(details?.type, details?.tmdbId);
+    return source.url(details?.type, details?.tmdbId, selectedSeason, episode?.episode_number);
   }, [details, selectedSeason, dubMode]);
 
   const addToHistory = useCallback(() => {
