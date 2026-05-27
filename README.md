@@ -256,6 +256,10 @@ Outputs are placed in `release/`.
 - **[FEEDBACK_SYSTEM_SETUP.md](./docs/FEEDBACK_SYSTEM_SETUP.md)** — Deploying the serverless feedback proxy
 
 ---
+## VibeRank Ranking
+<a href="https://viberank.dev/apps/Nexube" target="_blank" rel="noopener noreferrer"><img src="https://viberank.dev/badge?app=Nexube&theme=dark" alt="Nexube on VibeRank" /></a>
+
+---
 
 ## Inspiration
 
