@@ -11,6 +11,10 @@
 [Latest release (Nexube v0.2.4)](https://github.com/Aljayz/nexube/releases/tag/v0.2.4)
 
 ---
+## Ranking
+<a href="https://viberank.dev/apps/Nexube" target="_blank" rel="noopener noreferrer"><img src="https://viberank.dev/badge?app=Nexube&theme=dark" alt="Nexube on VibeRank" /></a>
+
+---
 
 ## Features
 
@@ -254,10 +258,6 @@ Outputs are placed in `release/`.
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — System design, data flow, IPC map
 - **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** — Setup guide, coding conventions, contributing
 - **[FEEDBACK_SYSTEM_SETUP.md](./docs/FEEDBACK_SYSTEM_SETUP.md)** — Deploying the serverless feedback proxy
-
----
-## VibeRank Ranking
-<a href="https://viberank.dev/apps/Nexube" target="_blank" rel="noopener noreferrer"><img src="https://viberank.dev/badge?app=Nexube&theme=dark" alt="Nexube on VibeRank" /></a>
 
 ---
 
