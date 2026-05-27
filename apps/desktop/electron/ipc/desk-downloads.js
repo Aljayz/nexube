@@ -1,4 +1,4 @@
-const { ipcMain, shell, dialog } = require('electron');
+const { ipcMain, shell, dialog, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -642,13 +642,23 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:pick-folder', async (_, { defaultPath } = {}) => {
     const opts = {
       properties: ['openDirectory'],
-      title: 'Select Desk Downloader Folder',
+      title: 'Select Folder',
     };
     if (defaultPath && fs.existsSync(defaultPath)) {
       opts.defaultPath = defaultPath;
     }
-    const result = await dialog.showOpenDialog(mainWindow, opts);
+    const result = await dialog.showOpenDialog(null, opts);
+    const mw = getMainWindow();
+    if (mw && !mw.isDestroyed()) {
+      if (mw.isMinimized()) mw.restore();
+      mw.show();
+      mw.focus();
+    }
     return result.canceled ? null : result.filePaths[0];
+  });
+
+  ipcMain.handle('desk-download:default-path', () => {
+    return path.join(app.getPath('downloads'), 'Nexube');
   });
 
   ipcMain.handle('desk-download:show-in-folder', (_, filePath) => {
