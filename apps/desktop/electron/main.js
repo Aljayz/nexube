@@ -276,6 +276,10 @@ app.whenReady().then(() => {
     const Store = require('./lib/store');
     const updaterStore = new Store({ name: 'updater-settings' });
 
+    if (!updaterStore.get('previousVersion', '')) {
+      updaterStore.set('previousVersion', APP_VERSION);
+    }
+
     if (updaterStore.get('autoUpdaterEnabled', true)) {
       const { autoUpdater } = require('electron-updater');
       autoUpdater.checkForUpdates().catch(() => {});

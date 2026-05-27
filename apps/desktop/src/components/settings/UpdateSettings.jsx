@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Download, RotateCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { RefreshCw, Download, RotateCw, CheckCircle, AlertCircle, Clock, Sparkles } from 'lucide-react';
 import { APP_VERSION } from '../../version';
+import WhatsNewModal from '../WhatsNewModal';
 
 export default function UpdateSettings() {
   const [autoUpdaterEnabled, setAutoUpdaterEnabled] = useState(true);
@@ -8,6 +9,7 @@ export default function UpdateSettings() {
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -88,7 +90,16 @@ export default function UpdateSettings() {
     <div className="space-y-lg">
       <div className="bg-surface rounded-card border border-border p-lg space-y-lg">
         <div>
-          <h2 className="text-lg font-bold text-text-primary mb-sm">Version</h2>
+          <div className="flex items-center justify-between mb-sm">
+            <h2 className="text-lg font-bold text-text-primary">Version</h2>
+            <button
+              onClick={() => setShowWhatsNew(true)}
+              className="btn-secondary inline-flex items-center gap-1.5 text-sm"
+            >
+              <Sparkles className="w-4 h-4" />
+              What's New
+            </button>
+          </div>
           <div className="flex items-center gap-sm">
             <span className="text-sm text-text-muted">Current version:</span>
             <span className="text-sm font-semibold text-text-primary">{APP_VERSION}</span>
@@ -243,6 +254,12 @@ export default function UpdateSettings() {
             </div>
           </div>
         </div>
+      )}
+      {showWhatsNew && (
+        <WhatsNewModal
+          version={APP_VERSION}
+          onClose={() => setShowWhatsNew(false)}
+        />
       )}
     </div>
   );
