@@ -97,6 +97,7 @@ contextBridge.exposeInMainWorld('electron', {
     checkBundled: () => ipcRenderer.invoke('desk-download:check-bundled'),
     checkFolder: (folderPath) => ipcRenderer.invoke('desk-download:check-folder', folderPath),
     pickFolder: (defaultPath) => ipcRenderer.invoke('desk-download:pick-folder', { defaultPath }),
+    defaultPath: () => ipcRenderer.invoke('desk-download:default-path'),
     scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
     showInFolder: (filePath) => ipcRenderer.invoke('desk-download:show-in-folder', filePath),
     onProgress: (callback) => {

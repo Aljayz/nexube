@@ -8,6 +8,11 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
   });
   const [binaryStatus, setBinaryStatus] = useState(null);
   const [checkingBinary, setCheckingBinary] = useState(false);
+  const [defaultDownloadPath, setDefaultDownloadPath] = useState('');
+
+  useEffect(() => {
+    window.electron?.deskDownloads?.defaultPath().then(setDefaultDownloadPath);
+  }, []);
   const [bundledStatus, setBundledStatus] = useState(null);
   const [mode, setMode] = useState(() => {
     try { return localStorage.getItem('nexube-downloader-mode') || 'bundled'; } catch { return 'bundled'; }
@@ -41,6 +46,11 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
       await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
       if (onProfileUpdated) onProfileUpdated();
     }
+  };
+
+  const handleSaveDownloadPath = async (path) => {
+    await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: path });
+    if (onProfileUpdated) onProfileUpdated();
   };
 
   const handlePickBinary = async () => {
@@ -102,15 +112,31 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
           Choose where downloaded files are saved. A <code className="px-xs py-2xs bg-background rounded text-xs">Nexube</code> folder will be created inside with <code className="px-xs py-2xs bg-background rounded text-xs">Movies</code> and <code className="px-xs py-2xs bg-background rounded text-xs">TV</code> subdirectories.
         </p>
         <div className="flex items-center gap-sm mb-sm">
-          <div className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-muted font-mono truncate">
-            {downloadPath || <span className="text-text-muted/50">Not set — will use default (Downloads/Nexube)</span>}
-          </div>
+          <input
+            className="input-field flex-1 font-mono"
+            placeholder={defaultDownloadPath || 'Type or browse for a download path'}
+            value={downloadPath}
+            onChange={(e) => setDownloadPath(e.target.value)}
+            onBlur={(e) => handleSaveDownloadPath(e.target.value)}
+          />
           <button
             onClick={handlePickDownloadPath}
-            className="flex items-center gap-xs px-md py-sm bg-accent text-white rounded-md hover:bg-accent/80 transition-colors text-sm"
+            className="btn-primary flex items-center gap-1.5 text-sm"
           >
             <FolderOpen className="w-4 h-4" />
-            Change
+            Browse
+          </button>
+          <button
+            onClick={async () => {
+              setDownloadPath('');
+              await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: '' });
+              if (onProfileUpdated) onProfileUpdated();
+            }}
+            className="btn-secondary flex items-center gap-1.5 text-sm"
+            disabled={!downloadPath}
+          >
+            <X className="w-4 h-4" />
+            Remove
           </button>
         </div>
       </div>
@@ -132,7 +158,7 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="flex items-center gap-xs text-sm px-md py-sm bg-accent text-white rounded-md hover:bg-accent/80 transition-colors disabled:opacity-50"
+            className="btn-primary flex items-center gap-1.5 text-sm disabled:opacity-50"
           >
             {scanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
             Scan
@@ -208,7 +234,7 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
             </div>
             <div className="flex items-center gap-sm mb-sm">
               <input
-                className="flex-1 px-sm py-sm bg-surface border border-border rounded text-sm text-text-muted font-mono"
+                className="input-field flex-1"
                 placeholder="Type or paste the binary folder path"
                 value={binaryFolder}
                 onChange={(e) => {
@@ -219,7 +245,7 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
               />
               <button
                 onClick={handlePickBinary}
-                className="flex items-center gap-xs px-md py-sm bg-accent text-white rounded-md hover:bg-accent/80 transition-colors text-sm shrink-0"
+                className="btn-primary flex items-center gap-1.5 text-sm"
               >
                 <FolderOpen className="w-4 h-4" />
                 Browse
@@ -227,7 +253,7 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
               <button
                 onClick={() => checkBinary(binaryFolder)}
                 disabled={!binaryFolder || checkingBinary}
-                className="flex items-center gap-xs px-md py-sm bg-surface border border-border text-text-primary rounded-md hover:bg-surface/80 transition-colors text-sm shrink-0 disabled:opacity-50"
+                className="btn-secondary flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
                 {checkingBinary ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 Check

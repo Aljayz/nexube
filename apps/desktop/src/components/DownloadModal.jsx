@@ -24,7 +24,12 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
   const [checking, setChecking] = useState(true);
   const [usingBundled, setUsingBundled] = useState(false);
   const [downloadPath, setDownloadPath] = useState(activeProfile?.downloadPath || '');
+  const [defaultDownloadPath, setDefaultDownloadPath] = useState('');
   const [settingPath, setSettingPath] = useState(false);
+
+  useEffect(() => {
+    window.electron?.deskDownloads?.defaultPath().then(setDefaultDownloadPath);
+  }, []);
   const [selectedSource, setSelectedSource] = useState(sourceId || 'videasy');
   const [translationType, setTranslationType] = useState('sub');
   const abortRef = useRef(false);
@@ -202,7 +207,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
             <div className="flex gap-sm mb-lg">
               <input
                 className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
-                placeholder="/home/you/Videos/Nexube"
+                placeholder={defaultDownloadPath || '/home/you/Videos/Nexube'}
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
               />
