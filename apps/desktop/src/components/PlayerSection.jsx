@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, ExternalLink, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, ExternalLink, Download, Maximize } from 'lucide-react';
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useBlockedStats } from '../hooks/useBlockedStats';
 import BlockedStatsModal from './BlockedStatsModal';
@@ -57,6 +57,41 @@ export default function PlayerSection({
   const { sessionTotal, alltimeTotal, showModal, setShowModal, getSessionDomains } = useBlockedStats(playerUrl);
   const hasPlayed = liveProgress && (liveProgress.currentTime > 0 || !liveProgress.paused || liveProgress.duration > 0);
   const [showPlayWarning, setShowPlayWarning] = useState(false);
+  const [playerFullscreen, setPlayerFullscreen] = useState(false);
+  const playerSectionRef = useRef(null);
+
+  // Intercept fullscreen requests from embedded players (vidsrc / vidapi use
+  // the native Fullscreen API which would otherwise fullscreen the entire app).
+  // Videasy and AllManga handle fullscreen internally, skip those.
+  useEffect(() => {
+    if (!selectedSource || selectedSource.progressMethod !== 'frameIteration') return;
+    const enterH = window.electron?.player?.onWebviewEnterFullscreen?.(() => {
+      setPlayerFullscreen(true);
+      document.documentElement.setAttribute('data-player-fullscreen', '1');
+      if (document.fullscreenElement) document.exitFullscreen?.();
+    });
+    const leaveH = window.electron?.player?.onWebviewLeaveFullscreen?.(() => {
+      setPlayerFullscreen(false);
+      document.documentElement.removeAttribute('data-player-fullscreen');
+    });
+    return () => {
+      if (enterH) window.electron?.player?.offWebviewEnterFullscreen?.(enterH);
+      if (leaveH) window.electron?.player?.offWebviewLeaveFullscreen?.(leaveH);
+      document.documentElement.removeAttribute('data-player-fullscreen');
+    };
+  }, [selectedSource]);
+
+  const handleFullscreen = () => {
+    window.electron?.player?.popoutFullscreen?.(playerUrl);
+  };
+
+  useEffect(() => {
+    const handler = () => {
+      window.electron?.window?.setFullScreen?.(false);
+    };
+    window.electron?.player?.onFullscreenExit?.(handler);
+    return () => window.electron?.player?.offFullscreenExit?.(handler);
+  }, []);
 
   const handleDownloadClick = () => {
     if (!hasPlayed) {
@@ -70,9 +105,9 @@ export default function PlayerSection({
   if (!playerUrl) return null;
 
   return (
-    <div className="mt-xl">
-      <div className="rounded-card overflow-hidden border border-border bg-surface">
-        <div className="flex items-center justify-between px-lg py-sm border-b border-border">
+    <div ref={playerSectionRef} className="mt-xl" data-player-fullscreen-container>
+      <div className={`rounded-card overflow-hidden border border-border bg-surface ${playerFullscreen ? 'h-full flex flex-col' : ''}`}>
+        <div className={`flex items-center justify-between px-lg py-sm border-b border-border ${playerFullscreen ? 'hidden' : ''}`}>
           <button
             onClick={onClose}
             className="flex items-center gap-sm px-md py-sm bg-surface-hover hover:bg-border rounded-button text-text-primary transition-colors"
@@ -230,13 +265,20 @@ export default function PlayerSection({
             </button>
           )}
           <button
+            onClick={handleFullscreen}
+            className="p-sm text-text-muted hover:text-text-primary transition-colors"
+            title="Fullscreen"
+          >
+            <Maximize className="w-5 h-5" />
+          </button>
+          <button
             onClick={onClose}
             className="p-sm text-text-muted hover:text-text-primary transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="relative aspect-video bg-black">
+        <div className={`relative bg-black ${playerFullscreen ? 'flex-1 max-h-[100dvh]' : 'aspect-video'}`}>
           {resolveError && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
               <div className="text-center px-xl">
@@ -282,6 +324,7 @@ export default function PlayerSection({
             key="player-webview"
             className={`w-full h-full ${pipActive ? 'opacity-0 pointer-events-none' : ''}`}
             partition="persist:player"
+            allowFullScreen
             webpreferences="autoplayPolicy=no-user-gesture-required"
           />
         </div>

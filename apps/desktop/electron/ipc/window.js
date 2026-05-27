@@ -21,6 +21,11 @@ function register(getMainWindow) {
     const win = getMainWindow();
     if (win) win.close();
   });
+
+  ipcMain.on('window:setFullScreen', (_, fullscreen) => {
+    const win = getMainWindow();
+    if (win) win.setFullScreen(fullscreen);
+  });
 }
 
 module.exports = { register };
