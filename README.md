@@ -8,7 +8,7 @@
 
 ---
 ## Download Link
-[Latest release (Nexube v0.2.4)](https://github.com/Aljayz/nexube/releases/tag/v0.2.4)
+[Latest release (Nexube v0.2.6)](https://github.com/Aljayz/nexube/releases/tag/v0.2.6)
 
 ---
 ## Ranking
