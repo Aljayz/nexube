@@ -68,7 +68,7 @@ const { register: registerTmdb } = require('./ipc/tmdb');
 const { register: registerProfiles } = require('./ipc/profiles');
 const { register: registerLibrary } = require('./ipc/library');
 const { register: registerSystem } = require('./ipc/system');
-const { register: registerDownloads, killAllDownloads } = require('./ipc/downloads');
+const { register: registerDeskDownloads, killAllDownloads: killAllDeskDownloads } = require('./ipc/desk-downloads');
 const { register: registerUpdater } = require('./ipc/updater');
 
 let mainWindow = null;
@@ -97,9 +97,13 @@ function createWindow() {
   });
 
   const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
-    headers['content-security-policy'] = [CSP];
+    const shouldInjectCSP = !CSP_EXEMPT_DOMAINS.some((d) => details.url.includes(d));
+    if (shouldInjectCSP) {
+      headers['content-security-policy'] = [CSP];
+    }
     callback({ responseHeaders: headers });
   });
 
@@ -136,12 +140,23 @@ function createWindow() {
         return;
       }
       try {
-        const host = new URL(url).hostname;
+        const parsed = new URL(url);
+        const host = parsed.hostname;
+        const path = parsed.pathname;
         const blocked = BLOCKED_HOSTS.some((pat) => {
-          const hostPat = pat.replace(/^\*:\/\//, '').split('/')[0];
-          return hostPat.startsWith('*.')
-            ? host.endsWith(hostPat.slice(1))
-            : host === hostPat || host === hostPat.replace(/^\*\./, '');
+          const withoutScheme = pat.replace(/^\*:\/\//, '');
+          const slashIdx = withoutScheme.indexOf('/');
+          const patHost = slashIdx === -1 ? withoutScheme : withoutScheme.substring(0, slashIdx);
+          const patPath = slashIdx === -1 ? '' : withoutScheme.substring(slashIdx);
+          const hostMatch = patHost.startsWith('*.')
+            ? host === patHost.slice(2) || host.endsWith('.' + patHost.slice(2))
+            : host === patHost;
+          if (!hostMatch) return false;
+          if (patPath) {
+            const escaped = patPath.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+            return new RegExp('^' + escaped + '$').test(path);
+          }
+          return true;
         });
         if (blocked) {
           blockStats.recordBlockedRequest(url);
@@ -218,7 +233,7 @@ app.whenReady().then(() => {
   registerProfiles();
   registerLibrary();
   registerSystem();
-  registerDownloads(mainWindow);
+  registerDeskDownloads(getMainWindow);
   registerAllmanga();
   registerUpdater();
 
@@ -280,7 +295,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  killAllDownloads();
+  killAllDeskDownloads();
   closeDatabase();
   if (mainWindow) {
     mainWindow.webContents.send('app-quitting');

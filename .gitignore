@@ -38,9 +38,17 @@ Thumbs.db
 # Release artifacts
 release/
 
+# Built downloader binaries (built in CI, not committed)
+apps/desktop/resources/desk-vid-dl/
+
 # Electron builder temp files
 *.blockmap
 
 # CI / Deploy
 .vercel
 .env*
+
+# Python
+venv/
+__pycache__/
+*.pyc

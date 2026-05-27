@@ -316,8 +316,8 @@ profiles (1) ──▶ search_history (N)
 | Source | Provider | Key | Type |
 |---|---|---|---|
 | Videasy | `player.videasy.net` | `videasy` | Standard embed |
+| VidAPI | `vaplayer.ru` | `vidapi` | Standard embed |
 | VidSrc | `vidsrc.to` | `vidsrc` | Standard embed |
-| 2Embed | `www.2embed.cc` | `twoembed` | Standard embed |
 | AllManga | Custom resolver | `allmanga` | GraphQL + hex cipher + AES-256-CTR |
 
 AllManga resolution runs in the main process via a local HTTP proxy started on demand. The resolver:
@@ -509,7 +509,7 @@ max_concurrent_downloads = 2
 Set via `onHeadersReceived` on the default session. Allows:
 - `img-src`: TMDB image CDN, YouTube thumbnails
 - `connect-src`: TMDB API, feedback proxy
-- `frame-src`: All streaming sources (Videasy, VidSrc, 2Embed, YouTube)
+- `frame-src`: All streaming sources (Videasy, VidAPI, VidSrc, YouTube)
 - `script-src`: `'self' 'unsafe-inline'`
 
 Player and trailer sessions strip CSP headers from upstream to allow embedded content.

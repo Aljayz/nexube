@@ -34,6 +34,13 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build desk-vid-dl (Windows)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
       - name: Set version from git tag
         shell: bash
         working-directory: apps/desktop
@@ -81,6 +88,13 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build desk-vid-dl (Linux)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
       - name: Set version from git tag
         working-directory: apps/desktop
         run: |
@@ -99,51 +113,6 @@ jobs:
           path: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
-
-  # build-mac temporarily disabled — macOS build not supported for now
-  # build-mac:
-  #   name: Build macOS (DMG)
-  #   runs-on: macos-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #     - uses: pnpm/action-setup@v4
-  #       with:
-  #         cache: false
-  #         cache_dependency_path: pnpm-lock.yaml
-  #     - name: Install dependencies
-  #       run: pnpm install --no-frozen-lockfile
-  #     - name: Build workspace packages
-  #       run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.12"
-  #     - name: Build vid-dl binary (macOS)
-  #       working-directory: vid-dl-cli-only
-  #       run: |
-  #         pip install -r requirements.txt pyinstaller pillow
-  #         python -m PyInstaller \
-  #           --noconfirm --onedir --clean --noupx \
-  #           --icon=icon.png \
-  #           --exclude-module pycryptodomex.selftest \
-  #           --exclude-module pycryptodomex.tests \
-  #           --target-arch universal2 \
-  #           --name "vid-dl" \
-  #           cli.py
-  #     - name: Copy vid-dl to resources
-  #       run: |
-  #         mkdir -p apps/desktop/resources/vid-dl/darwin/vid-dl
-  #         cp -r vid-dl-cli-only/dist/vid-dl/* apps/desktop/resources/vid-dl/darwin/vid-dl/
-  #     - name: Build macOS installer
-  #       working-directory: apps/desktop
-  #       run: pnpm electron:build
-  #     - name: Upload macOS installer
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: installer-mac
-  #         path: apps/desktop/release/*.dmg
 
   release:
     name: Create GitHub Release

@@ -14,6 +14,18 @@ export const PLAYER_SOURCES: PlayerSource[] = [
     },
   },
   {
+    id: 'vidapi',
+    label: 'VidAPI',
+    supportsProgress: true,
+    progressMethod: 'frameIteration',
+    url: (type, id, season?, episode?) => {
+      if (type === 'movie') {
+        return `https://vaplayer.ru/embed/movie/${id}`;
+      }
+      return `https://vaplayer.ru/embed/tv/${id}/${season}/${episode}`;
+    },
+  },
+  {
     id: 'vidsrc',
     label: 'VidSrc',
     supportsProgress: true,
@@ -23,18 +35,6 @@ export const PLAYER_SOURCES: PlayerSource[] = [
         return `https://vidsrc.to/embed/movie/${id}`;
       }
       return `https://vidsrc.to/embed/tv/${id}/${season}/${episode}`;
-    },
-  },
-  {
-    id: '2embed',
-    label: '2Embed',
-    supportsProgress: true,
-    progressMethod: 'frameIteration',
-    url: (type, id, season?, episode?) => {
-      if (type === 'movie') {
-        return `https://www.2embed.cc/embed/${id}`;
-      }
-      return `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`;
     },
   },
   {

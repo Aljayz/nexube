@@ -82,45 +82,30 @@ contextBridge.exposeInMainWorld('electron', {
    feedback: {
      openFeedbackForm: () => ipcRenderer.invoke('feedback:openForm'),
    },
-  downloads: {
-    start: (params) => ipcRenderer.invoke('downloads:start', params),
-    cancel: (id) => ipcRenderer.invoke('downloads:cancel', id),
-    stop: (id) => ipcRenderer.invoke('downloads:cancel', id),
-    delete: (id) => ipcRenderer.invoke('downloads:delete', id),
-    killAll: () => ipcRenderer.invoke('downloads:kill-all'),
-    list: (profileId) => ipcRenderer.invoke('downloads:list', profileId),
-    getActive: (profileId) => ipcRenderer.invoke('downloads:getActive', profileId),
-    play: (id) => ipcRenderer.invoke('downloads:play', id),
-    checkDownloader: (folderPath) => ipcRenderer.invoke('check-downloader', folderPath),
-    checkBundledDownloader: () => ipcRenderer.invoke('check-bundled-downloader'),
-    runDownload: (params) => ipcRenderer.invoke('run-download', params),
-    pickFolder: () => ipcRenderer.invoke('pick-folder'),
-    pickDownloadPath: () => ipcRenderer.invoke('pick-download-path'),
-    showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
-    openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
+   deskDownloads: {
+    start: (params) => ipcRenderer.invoke('desk-download:start', params),
+    queue: (params) => ipcRenderer.invoke('desk-download:queue', params),
+    pause: (id) => ipcRenderer.invoke('desk-download:pause', id),
+    resume: (id) => ipcRenderer.invoke('desk-download:resume', id),
+    stop: (id) => ipcRenderer.invoke('desk-download:stop', id),
+    kill: (id) => ipcRenderer.invoke('desk-download:kill', id),
+    delete: (id) => ipcRenderer.invoke('desk-download:delete', id),
+    killAll: () => ipcRenderer.invoke('desk-download:kill-all'),
+    list: (profileId) => ipcRenderer.invoke('desk-download:list', profileId),
+    getActive: (profileId) => ipcRenderer.invoke('desk-download:getActive', profileId),
+    play: (id) => ipcRenderer.invoke('desk-download:play', id),
+    checkBundled: () => ipcRenderer.invoke('desk-download:check-bundled'),
+    checkFolder: (folderPath) => ipcRenderer.invoke('desk-download:check-folder', folderPath),
+    pickFolder: (defaultPath) => ipcRenderer.invoke('desk-download:pick-folder', { defaultPath }),
+    scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
+    showInFolder: (filePath) => ipcRenderer.invoke('desk-download:show-in-folder', filePath),
     onProgress: (callback) => {
       const handler = (_, data) => callback(data);
-      ipcRenderer.on('download:progress', handler);
+      ipcRenderer.on('desk-download:progress', handler);
       return handler;
     },
     offProgress: (handler) => {
-      if (handler) ipcRenderer.removeListener('download:progress', handler);
-    },
-    onComplete: (callback) => {
-      const handler = (_, data) => callback(data);
-      ipcRenderer.on('download:complete', handler);
-      return handler;
-    },
-    offComplete: (handler) => {
-      if (handler) ipcRenderer.removeListener('download:complete', handler);
-    },
-    onError: (callback) => {
-      const handler = (_, data) => callback(data);
-      ipcRenderer.on('download:error', handler);
-      return handler;
-    },
-    offError: (handler) => {
-      if (handler) ipcRenderer.removeListener('download:error', handler);
+      if (handler) ipcRenderer.removeListener('desk-download:progress', handler);
     },
   },
   onM3u8Found: (callback) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, X } from 'lucide-react';
+import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import { useDownloads } from '../hooks/useDownloads';
 import LocalPlayer from '../components/LocalPlayer';
@@ -9,15 +9,16 @@ function formatBytes(bytes) {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
 }
 
 function DownloadsPage({ activeProfile }) {
   const profileId = activeProfile?.id || 'master-id';
-  const { downloads, setDownloads, loading, error, startDownload, cancelDownload, deleteDownload, playDownload, refreshDownloads, stopAllDownloads } = useDownloads(profileId);
+  const { downloads, setDownloads, loading, error, startDownload, cancelDownload, pauseDownload, resumeDownload, deleteDownload, playDownload, refreshDownloads, stopAllDownloads } = useDownloads(profileId);
   const [retryCount, setRetryCount] = useState(0);
   const [playingDownload, setPlayingDownload] = useState(null);
-  const [confirmStopId, setConfirmStopId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
 
   useEffect(() => {
     refreshDownloads();
@@ -37,18 +38,21 @@ function DownloadsPage({ activeProfile }) {
   const handleOpenFolder = async (download) => {
     const target = download.file_path || download.download_path;
     if (target) {
-      await window.electron?.downloads?.showInFolder(target);
+      await window.electron?.deskDownloads?.showInFolder(target);
     }
   };
 
-  const handleStop = (id) => setConfirmStopId(id);
-
-  const confirmStop = async (id) => {
+  const handleStop = async (id) => {
     await cancelDownload(id);
-    setConfirmStopId(null);
   };
 
-  const cancelStop = () => setConfirmStopId(null);
+  const handlePause = async (id) => {
+    await pauseDownload(id);
+  };
+
+  const handleResume = async (id) => {
+    await resumeDownload(id);
+  };
 
   const handleRetry = async (download) => {
     const result = await startDownload({
@@ -61,7 +65,7 @@ function DownloadsPage({ activeProfile }) {
       episode: download.type === 'tv' ? download.episode : undefined,
       episodeTitle: download.type === 'tv' ? download.episode_name : undefined,
       sourceId: download.source_id,
-      binaryPath: null,
+      binaryToken: null,
     });
 
     if (!result?.success) {
@@ -69,11 +73,20 @@ function DownloadsPage({ activeProfile }) {
     }
   };
 
-  const handleStopAll = () => setConfirmStopId('all');
-
-  const confirmStopAll = async () => {
+  const handleStopAll = async () => {
     await stopAllDownloads();
-    setConfirmStopId(null);
+  };
+
+  const handleScan = async () => {
+    setScanning(true);
+    setScanResult(null);
+    const downloadPath = activeProfile?.downloadPath || '';
+    const result = await window.electron?.deskDownloads?.scan({ profileId, downloadPath });
+    if (result) {
+      setScanResult(result);
+      if (result.imported > 0) refreshDownloads();
+    }
+    setScanning(false);
   };
 
   if (loading) {
@@ -94,10 +107,11 @@ function DownloadsPage({ activeProfile }) {
   }
 
   const activeDownloads = downloads.filter((d) => d.status === 'downloading');
+  const pausedDownloads = downloads.filter((d) => d.status === 'paused');
   const completedDownloads = downloads.filter((d) => d.status === 'completed');
-  const failedDownloads = downloads.filter((d) => d.status === 'failed' || d.status === 'error' || d.status === 'cancelled');
+  const failedDownloads = downloads.filter((d) => ['failed', 'error', 'cancelled', 'stopped', 'killed'].includes(d.status));
 
-  const hasAnyContent = activeDownloads.length > 0 || completedDownloads.length > 0 || failedDownloads.length > 0;
+  const hasAnyContent = activeDownloads.length > 0 || pausedDownloads.length > 0 || completedDownloads.length > 0 || failedDownloads.length > 0;
 
   return (
     <div className="px-lg py-lg">
@@ -112,44 +126,51 @@ function DownloadsPage({ activeProfile }) {
             </p>
           )}
         </div>
-        {hasAnyContent && (
-          <div className="flex items-center gap-sm">
-            {activeDownloads.length > 0 && (
-              <button
-                onClick={handleStopAll}
-                className="flex items-center gap-xs text-sm px-md py-sm bg-danger/10 text-danger hover:bg-danger/20 rounded-md transition-colors"
-              >
-                <StopCircle className="w-4 h-4" />
-                Stop All
-              </button>
-            )}
+        <div className="flex items-center gap-sm">
+          {hasAnyContent && activeDownloads.length > 0 && (
+            <button
+              onClick={handleStopAll}
+              className="flex items-center gap-xs text-sm px-md py-sm bg-danger/10 text-danger hover:bg-danger/20 rounded-md transition-colors"
+            >
+              <StopCircle className="w-4 h-4" />
+              Stop All
+            </button>
+          )}
+          <button
+            onClick={handleScan}
+            disabled={scanning}
+            className="flex items-center gap-xs text-sm px-md py-sm bg-surface text-text-muted hover:text-accent hover:bg-surface/80 rounded-md border border-border transition-colors disabled:opacity-50"
+          >
+            {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            Scan
+          </button>
+          {hasAnyContent && (
             <button
               onClick={() => refreshDownloads()}
               className="flex items-center gap-xs text-sm px-md py-sm bg-surface text-text-muted hover:text-accent hover:bg-surface/80 rounded-md border border-border transition-colors"
             >
               <Loader2 className="w-3.5 h-3.5" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-
-      {confirmStopId === 'all' && (
-        <div className="mb-lg p-md bg-danger/10 border border-danger/30 rounded-card flex items-center justify-between">
+      {scanResult && (
+        <div className={`mb-lg p-md rounded-card flex items-center justify-between ${scanResult.imported > 0 ? 'bg-success/10 border border-success/30' : 'bg-background border border-border'}`}>
           <div className="flex items-center gap-sm">
-            <AlertCircle className="w-5 h-5 text-danger" />
+            {scanResult.imported > 0 ? <CheckCircle className="w-5 h-5 text-success" /> : <Search className="w-5 h-5 text-text-muted" />}
             <div>
-              <p className="text-sm font-medium text-danger">Stop all active downloads?</p>
-              <p className="text-xs text-text-muted mt-xs">All partial files will be deleted.</p>
+              <p className="text-sm font-medium text-text-primary">
+                {scanResult.imported > 0
+                  ? `Found ${scanResult.found} file(s), imported ${scanResult.imported} new`
+                  : scanResult.found > 0
+                    ? `${scanResult.found} file(s) found, all already tracked`
+                    : 'No video files found in download path'}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-sm">
-            <button onClick={cancelStop} className="text-sm px-md py-sm bg-surface border border-border rounded-md text-text-primary hover:bg-surface/80 transition-colors">
-              Cancel
-            </button>
-            <button onClick={confirmStopAll} className="text-sm px-md py-sm bg-danger text-white rounded-md hover:bg-danger/80 transition-colors">
-              Stop All
-            </button>
-          </div>
+          <button onClick={() => setScanResult(null)} className="text-text-muted hover:text-text-primary">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -169,78 +190,124 @@ function DownloadsPage({ activeProfile }) {
               </h2>
               <div className="space-y-md">
                 {activeDownloads.map((download) => (
-                  <div key={download.id} className="relative">
-                    {confirmStopId === download.id && (
-                      <div className="absolute inset-0 z-10 bg-surface/90 rounded-card flex items-center justify-center border border-danger/30">
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-text-primary mb-xs">Stop this download?</p>
-                          <p className="text-xs text-text-muted mb-md">All downloaded files will be deleted.</p>
-                          <div className="flex items-center justify-center gap-sm">
-                            <button onClick={cancelStop} className="text-sm px-md py-sm bg-surface border border-border rounded-md text-text-primary hover:bg-surface/80 transition-colors">
-                              Cancel
-                            </button>
-                            <button onClick={() => confirmStop(download.id)} className="text-sm px-md py-sm bg-danger text-white rounded-md hover:bg-danger/80 transition-colors">
-                              Stop
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-md p-md bg-surface rounded-card border border-border hover:border-accent/30 transition-colors">
-                      <div className="w-16 h-24 rounded-card overflow-hidden flex-shrink-0 bg-surface/50">
-                        <img
-                          src={
-                            download.poster_path
-                              ? `https://image.tmdb.org/t/p/w92${download.poster_path}`
-                              : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" fill="%2312121A"></svg>'
-                          }
-                          alt={download.title}
-                          className="w-full h-full object-cover"
+                  <div key={download.id} className="flex items-center gap-md p-md bg-surface rounded-card border border-border hover:border-accent/30 transition-colors">
+                    <div className="w-16 h-24 rounded-card overflow-hidden flex-shrink-0 bg-surface/50">
+                      <img
+                        src={
+                          download.poster_path
+                            ? `https://image.tmdb.org/t/p/w92${download.poster_path}`
+                            : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" fill="%2312121A"></svg>'
+                        }
+                        alt={download.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-text-primary truncate">
+                        {download.title}
+                        {download.season && download.episode && (
+                          <span className="text-text-muted ml-sm">S{download.season}E{download.episode}</span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-text-muted mt-xs mb-sm">
+                        {download.lastMessage || 'Downloading...'}
+                        {download.totalFragments > 0 && ` (${download.completedFragments}/${download.totalFragments})`}
+                      </p>
+
+                      <div className="w-full bg-background rounded-full h-1.5 mb-sm">
+                        <div
+                          className="bg-accent h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(download.progress || 0, 100).toFixed(1)}%` }}
                         />
                       </div>
 
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-text-primary truncate">
-                          {download.title}
-                          {download.season && download.episode && (
-                            <span className="text-text-muted ml-sm">S{download.season}E{download.episode}</span>
-                          )}
-                        </h3>
-                        <p className="text-xs text-text-muted mt-xs mb-sm">
-                          {download.lastMessage || 'Downloading...'}
-                          {download.totalFragments > 0 && ` (${download.completedFragments}/${download.totalFragments})`}
-                        </p>
-
-                        <div className="w-full bg-background rounded-full h-1.5 mb-sm">
-                          <div
-                            className="bg-accent h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(download.progress || 0, 100).toFixed(1)}%` }}
-                          />
+                      <div className="flex items-center justify-between text-xs text-text-muted">
+                        <div className="flex items-center gap-lg">
+                          {/* <span className="font-medium">{(download.progress || 0).toFixed(1)}%</span>
+                          {download.totalFragments > 0 && (
+                            <span>{download.completedFragments}/{download.totalFragments}</span>
+                          )} */}
                         </div>
-
-                        <div className="flex items-center justify-between text-xs text-text-muted">
-                          <div className="flex items-center gap-lg">
-                            <span className="font-medium">{(download.progress || 0).toFixed(1)}%</span>
-                            {download.totalFragments > 0 && (
-                              <span>{download.completedFragments}/{download.totalFragments}</span>
-                            )}
-                          </div>
-                          <div className="flex gap-md">
-                            {download.speed && <span className="text-accent">{download.speed}</span>}
-                            {download.size && <span>{download.size}</span>}
-                          </div>
+                        <div className="flex gap-md">
+                          {download.downloaded_bytes ? (
+                            <span className="text-accent">{formatBytes(download.downloaded_bytes)} / {formatBytes(download.total_bytes)}</span>
+                          ) : null}
+                          {/* {download.speed ? <span className="text-accent">{formatBytes(download.speed)}/s</span> : null} */}
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-xs">
-                        <button
-                          onClick={() => handleStop(download.id)}
-                          className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
-                          title="Stop"
-                        >
-                          <StopCircle className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <div className="flex items-center gap-xs">
+                      <button
+                        onClick={() => handlePause(download.id)}
+                        className="p-sm text-text-muted hover:text-warning hover:bg-warning/10 rounded-md transition-colors"
+                        title="Pause"
+                      >
+                        <PauseCircle className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleStop(download.id)}
+                        className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                        title="Stop"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pausedDownloads.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
+                <div className="w-2 h-2 rounded-full bg-warning" />
+                Paused
+              </h2>
+              <div className="space-y-md">
+                {pausedDownloads.map((download) => (
+                  <div key={download.id} className="flex items-center gap-md p-md bg-surface rounded-card border border-warning/20 hover:border-warning/40 transition-colors">
+                    <div className="w-16 h-24 rounded-card overflow-hidden flex-shrink-0 bg-surface/50">
+                      <img
+                        src={
+                          download.poster_path
+                            ? `https://image.tmdb.org/t/p/w92${download.poster_path}`
+                            : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" fill="%2312121A"></svg>'
+                        }
+                        alt={download.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-text-primary truncate">
+                        {download.title}
+                        {download.season && download.episode && (
+                          <span className="text-text-muted ml-sm">S{download.season}E{download.episode}</span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-warning mt-xs">
+                        Paused at {(download.progress || 0).toFixed(1)}%
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-xs">
+                      <button
+                        onClick={() => handleResume(download.id)}
+                        className="p-sm text-text-muted hover:text-success hover:bg-success/10 rounded-md transition-colors"
+                        title="Resume"
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(download.id)}
+                        className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -279,8 +346,8 @@ function DownloadsPage({ activeProfile }) {
                           <span className="text-text-muted ml-sm">S{download.season}E{download.episode}</span>
                         )}
                       </h3>
-                      <p className={`text-xs mt-xs ${download.status === 'cancelled' ? 'text-warning' : 'text-danger'}`}>
-                        {download.status === 'cancelled'
+                      <p className={`text-xs mt-xs ${['cancelled', 'stopped', 'killed'].includes(download.status) ? 'text-warning' : 'text-danger'}`}>
+                        {['cancelled', 'stopped', 'killed'].includes(download.status)
                           ? 'Stopped'
                           : download.lastMessage || download.error || 'Download failed'}
                       </p>
@@ -340,7 +407,7 @@ function DownloadsPage({ activeProfile }) {
                         )}
                       </h3>
                       <p className="text-xs text-text-muted mt-xs">
-                        {download.size || 'Unknown size'}
+                        {formatBytes(download.total_bytes) || 'Unknown size'}
                       </p>
                       <p className="text-xs text-success mt-xs flex items-center gap-2xs">
                         <CheckCircle className="w-3 h-3" />

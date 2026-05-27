@@ -11,7 +11,7 @@
 ## ✨ Features
 
 ### 🎬 Core Experience
-- **Multi-Source Streaming Player** — Switch seamlessly between Videasy, VidSrc, 2Embed, and AllManga (anime) without leaving the player
+- **Multi-Source Streaming Player** — Switch seamlessly between Videasy, VidAPI, VidSrc, and AllManga (anime) without leaving the player
 - **Picture-in-Picture Mode** — Native PiP popout with cross-platform window frame configuration
 - **Pop-up & Redirect Blocking** — Webview-level interception with per-session stats tracking
 - **HLS Download Manager** — Stream capture via bundled `vid-dl` binary (PyInstaller), with progress tracking and queue management
