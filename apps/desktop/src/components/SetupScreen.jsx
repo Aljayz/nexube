@@ -1,6 +1,20 @@
-import { useState } from 'react';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, Lock, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import AvatarPicker from './AvatarPicker';
+
+const HELP_STEPS = [
+  { img: 'setup-guide/tmdb.png', text: 'Head over to themoviedb.org. If you already have an account, sign in. Otherwise, fill out the registration form to create one.' },
+  { img: 'setup-guide/acvtivation.png', text: 'Check your email inbox for an activation link. Click it to verify and activate your account.' },
+  { img: 'setup-guide/landing.png', text: 'Once logged in, click your profile avatar in the top-right corner of the landing page.' },
+  { img: 'setup-guide/step-1.png', text: 'A dropdown menu will appear. Select the "Settings" option.' },
+  { img: 'setup-guide/step-2.png', text: 'On the Settings page, locate the navigation menu on the left and click the "API" entry.' },
+  { img: 'setup-guide/step-3.png', text: 'You will be taken to the API management page. Click the "Create" button to generate a new key.' },
+  { img: 'setup-guide/step-4.png', text: 'A prompt will appear. Select the "Personal Use Only" option for using with Nexube.' },
+  { img: 'setup-guide/step-5.png', text: 'Read the terms, check the acknowledgment checkbox, and click "Yes, this is for personal use" to proceed.' },
+  { img: 'setup-guide/step-6.png', text: 'Fill in the required details. Use any valid URL for "Application URL" and write a brief summary.' },
+  { img: 'setup-guide/step-7.png', text: 'Once the key is created, you will see it listed. Click the highlighted text to view the full details.' },
+  { img: 'setup-guide/step-8.png', text: 'Look for the "API Key" field. Carefully copy the entire value and paste it into Nexube.' },
+];
 
 function SetupScreen({ onComplete }) {
   const [step, setStep] = useState(1);
@@ -18,6 +32,23 @@ function SetupScreen({ onComplete }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [avatar, setAvatar] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpStep, setHelpStep] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+
+  useEffect(() => {
+    if (!showHelp) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        if (zoomed) { setZoomed(false); return; }
+        setShowHelp(false);
+      }
+      if (e.key === 'ArrowLeft') setHelpStep((s) => Math.max(0, s - 1));
+      if (e.key === 'ArrowRight') setHelpStep((s) => Math.min(HELP_STEPS.length - 1, s + 1));
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showHelp, zoomed]);
 
   const handleApiKeySubmit = async (e) => {
     e.preventDefault();
@@ -116,14 +147,21 @@ function SetupScreen({ onComplete }) {
           {step === 1 && (
             <p className="text-xs text-text-disabled mt-sm">
               Get a free API key at{' '}
-              <a
-                href="https://www.themoviedb.org/settings/api"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
+              <button
+                type="button"
+                onClick={() => window.electron?.shell?.openExternal?.('https://www.themoviedb.org/settings/api')}
+                className="text-accent hover:underline inline cursor-pointer bg-transparent border-none p-0"
               >
                 themoviedb.org
-              </a>
+              </button>
+              {' '}—{' '}
+              <button
+                type="button"
+                onClick={() => { setShowHelp(true); setHelpStep(0); }}
+                className="text-accent hover:underline inline cursor-pointer bg-transparent border-none p-0"
+              >
+                Need help?
+              </button>
             </p>
           )}
         </div>
@@ -332,6 +370,105 @@ function SetupScreen({ onComplete }) {
           </form>
         )}
       </div>
+
+      {showHelp && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-overlay z-50 flex items-center justify-center p-xl">
+          <div className="w-full max-w-2xl bg-surface rounded-xl overflow-hidden shadow-xl border border-border">
+            <div className="flex items-center justify-between p-lg border-b border-border">
+              <h2 className="text-lg font-bold text-text-primary">
+                Step {helpStep + 1} of {HELP_STEPS.length}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowHelp(false)}
+                className="p-sm text-text-muted hover:text-text-primary transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-lg">
+              <div className="bg-background rounded-lg overflow-hidden mb-lg flex items-center justify-center h-64 cursor-pointer" onClick={() => setZoomed(true)}>
+                <img
+                  src={HELP_STEPS[helpStep].img}
+                  alt={`Step ${helpStep + 1}`}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+              <p className="text-sm text-text-primary leading-relaxed">
+                {helpStep + 1}. {HELP_STEPS[helpStep].text}
+              </p>
+            </div>
+
+            {zoomed && (
+              <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center" onClick={() => setZoomed(false)}>
+                <div className="flex flex-col items-center gap-lg" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-sm text-white/90 leading-relaxed max-w-2xl text-center px-lg">
+                    {helpStep + 1}. {HELP_STEPS[helpStep].text}
+                  </p>
+                  <div className="relative inline-flex">
+                    <button
+                      type="button"
+                      onClick={() => setZoomed(false)}
+                      className="absolute -top-2 -right-2 p-1 rounded-full bg-background border border-border text-text-muted hover:text-text-primary transition-colors shadow-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <img
+                      src={HELP_STEPS[helpStep].img}
+                      alt={`Step ${helpStep + 1}`}
+                      className="max-w-[75vw] max-h-[65vh] object-contain rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-lg border-t border-border">
+              <button
+                type="button"
+                onClick={() => setHelpStep((s) => Math.max(0, s - 1))}
+                disabled={helpStep === 0}
+                className="btn-secondary disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex gap-1.5">
+                {HELP_STEPS.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setHelpStep(i)}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      i === helpStep ? 'bg-accent' : 'bg-border hover:bg-text-muted'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setHelpStep((s) => Math.min(HELP_STEPS.length - 1, s + 1))}
+                disabled={helpStep === HELP_STEPS.length - 1}
+                className="btn-secondary disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-lg pb-lg">
+              <button
+                type="button"
+                onClick={() => setShowHelp(false)}
+                className="btn-primary w-full"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
