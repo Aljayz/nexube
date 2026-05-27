@@ -14,13 +14,33 @@ contextBridge.exposeInMainWorld('electron', {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggleMaximize'),
     close: () => ipcRenderer.send('window:close'),
+    setFullScreen: (fullscreen) => ipcRenderer.send('window:setFullScreen', fullscreen),
     onMaximizeChange: (callback) => ipcRenderer.on('window:maximize-change', (_, isMaximized) => callback(isMaximized)),
   },
   player: {
     popout: (url) => ipcRenderer.invoke('player:popout', url),
+    popoutFullscreen: (url) => ipcRenderer.invoke('player:popoutFullscreen', url),
     stop: () => ipcRenderer.send('player:stop'),
     reattach: () => ipcRenderer.send('popout:reattach'),
+    onFullscreenExit: (callback) => ipcRenderer.on('player:fullscreen-exit', () => callback()),
+    offFullscreenExit: (handler) => ipcRenderer.removeListener('player:fullscreen-exit', handler),
     onAppQuitting: (callback) => ipcRenderer.on('app-quitting', callback),
+    onWebviewEnterFullscreen: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('webview-enter-fullscreen', handler);
+      return handler;
+    },
+    offWebviewEnterFullscreen: (handler) => {
+      if (handler) ipcRenderer.removeListener('webview-enter-fullscreen', handler);
+    },
+    onWebviewLeaveFullscreen: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('webview-leave-fullscreen', handler);
+      return handler;
+    },
+    offWebviewLeaveFullscreen: (handler) => {
+      if (handler) ipcRenderer.removeListener('webview-leave-fullscreen', handler);
+    },
   },
   tmdb: {
     fetch: (endpoint, params) => ipcRenderer.invoke('tmdb:fetch', endpoint, params),

@@ -2,6 +2,7 @@ const { ipcMain, BrowserWindow, session, webContents } = require('electron');
 const path = require('path');
 
 let popoutWindow = null;
+let fullscreenWindow = null;
 const trackedWebContents = new Set();
 
 function register(getMainWindow) {
@@ -47,6 +48,51 @@ function register(getMainWindow) {
       popoutWindow = null;
       if (mainWin && !mainWin.isDestroyed()) {
         mainWin.webContents.send('pip-state', false);
+      }
+    });
+  });
+
+  ipcMain.handle('player:popoutFullscreen', async (_, playerUrl) => {
+    const mainWin = getMainWindow();
+    if (!mainWin) return;
+
+    if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+      fullscreenWindow.focus();
+      return;
+    }
+
+    fullscreenWindow = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      frame: true,
+      backgroundColor: '#08080C',
+      title: 'Nexube Player',
+      webPreferences: {
+        partition: 'persist:player',
+        nodeIntegration: false,
+        contextIsolation: true,
+        webviewTag: true,
+      },
+    });
+
+    fullscreenWindow.setMenu(null);
+    fullscreenWindow.loadURL(playerUrl);
+    fullscreenWindow.setFullScreen(true);
+
+    const wcId = fullscreenWindow.webContents.id;
+    trackedWebContents.add(wcId);
+
+    fullscreenWindow.on('leave-full-screen', () => {
+      if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+        try { fullscreenWindow.close(); } catch {}
+      }
+    });
+
+    fullscreenWindow.on('closed', () => {
+      trackedWebContents.delete(wcId);
+      fullscreenWindow = null;
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('player:fullscreen-exit');
       }
     });
   });
