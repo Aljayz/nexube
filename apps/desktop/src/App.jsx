@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { applyAccentColor } from './hooks/useSettings';
+import { APP_VERSION } from './version';
 import CustomTitlebar from './components/CustomTitlebar';
 import SplashScreen from './components/SplashScreen';
 import SetupScreen from './components/SetupScreen';
@@ -238,11 +239,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const el = window.electron;
-    if (!el?.update) return;
-    const h = el.update.onWhatsNew((data) => setWhatsNewVersion(data.version));
-    return () => el.update.offWhatsNew(h);
-  }, []);
+    if (!activeProfile) return;
+    (async () => {
+      const prev = await window.electron?.update?.getPreviousVersion?.();
+      if (prev?.version && prev.version !== APP_VERSION) {
+        setWhatsNewVersion(APP_VERSION);
+      }
+    })();
+  }, [activeProfile]);
 
   useEffect(() => {
     const mod = (e) => e.metaKey || e.ctrlKey;
