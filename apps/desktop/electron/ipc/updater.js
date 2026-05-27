@@ -1,11 +1,24 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const Store = require('../lib/store');
+const https = require('https');
 
 let _store = null;
 function getStore() {
   if (!_store) _store = new Store({ name: 'updater-settings' });
   return _store;
+}
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Nexube' } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch { reject(new Error('Invalid JSON')); }
+      });
+    }).on('error', reject);
+  });
 }
 
 const UPDATE_CHANNEL = 'update';
@@ -106,6 +119,24 @@ function register() {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('update:getReleaseNotes', async (_, version) => {
+    try {
+      const data = await fetchJson(`https://api.github.com/repos/Aljayz/nexube/releases/tags/v${version}`);
+      return { success: true, body: data.body || '' };
+    } catch {
+      return { success: false, error: 'Failed to fetch release notes' };
+    }
+  });
+
+  ipcMain.handle('update:storeVersion', (_, version) => {
+    getStore().set('previousVersion', version);
+    return { success: true };
+  });
+
+  ipcMain.handle('update:getPreviousVersion', () => {
+    return { version: getStore().get('previousVersion', '') };
   });
 }
 

@@ -146,6 +146,17 @@ contextBridge.exposeInMainWorld('electron', {
     getStatus: () => ipcRenderer.invoke('update:getStatus'),
     setEnabled: (enabled) => ipcRenderer.invoke('update:setEnabled', enabled),
     getLatestVersion: () => ipcRenderer.invoke('update:getLatestVersion'),
+    getReleaseNotes: (version) => ipcRenderer.invoke('update:getReleaseNotes', version),
+    storeVersion: (version) => ipcRenderer.invoke('update:storeVersion', version),
+    getPreviousVersion: () => ipcRenderer.invoke('update:getPreviousVersion'),
+    onWhatsNew: (callback) => {
+      const h = (_, data) => callback(data);
+      ipcRenderer.on('show-whats-new', h);
+      return h;
+    },
+    offWhatsNew: (handler) => {
+      if (handler) ipcRenderer.removeListener('show-whats-new', handler);
+    },
     onChecking: (callback) => {
       const h = () => callback();
       ipcRenderer.on('update:checking', h);
