@@ -59,13 +59,13 @@ export default function UpdateNotification() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-4 shadow-2xl max-w-sm">
+      <div className="bg-surface border border-border rounded-xl p-4 shadow-2xl max-w-sm">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
-            {status === 'available' && <Download className="w-5 h-5 text-indigo-400" />}
-            {status === 'downloading' && <RotateCw className="w-5 h-5 text-indigo-400 animate-spin" />}
-            {status === 'downloaded' && <Download className="w-5 h-5 text-green-400" />}
-            <span className="text-sm font-medium text-white">
+            {status === 'available' && <Download className="w-5 h-5 text-accent" />}
+            {status === 'downloading' && <RotateCw className="w-5 h-5 text-accent animate-spin" />}
+            {status === 'downloaded' && <Download className="w-5 h-5 text-success" />}
+            <span className="text-sm font-medium text-text-primary">
               {status === 'available' && `Update ${updateInfo?.version} available`}
               {status === 'downloading' && 'Downloading update...'}
               {status === 'downloaded' && 'Update ready to install'}
@@ -73,16 +73,16 @@ export default function UpdateNotification() {
           </div>
           <button
             onClick={() => setDismissed(true)}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-text-muted hover:text-text-primary transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {status === 'downloading' && (
-          <div className="w-full bg-[#0A0A0F] rounded-full h-2 mb-3">
+          <div className="w-full bg-background rounded-full h-2 mb-3">
             <div
-              className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+              className="bg-accent h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -92,7 +92,7 @@ export default function UpdateNotification() {
           {status === 'available' && (
             <button
               onClick={handleDownload}
-              className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+              className="btn-primary w-full text-xs"
             >
               Download
             </button>
@@ -100,7 +100,7 @@ export default function UpdateNotification() {
           {status === 'downloaded' && (
             <button
               onClick={handleInstall}
-              className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-lg transition-colors"
+              className="px-3 py-1.5 bg-success text-background text-xs font-medium rounded-button hover:bg-success/80 transition-colors w-full"
             >
               Install & Restart
             </button>
