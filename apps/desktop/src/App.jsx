@@ -13,6 +13,7 @@ import LoadingScreen from './components/LoadingScreen';
 import NoticeDialog from './components/NoticeDialog';
 import UpdateNotification from './components/UpdateNotification';
 import UpdateApiKeyModal from './components/UpdateApiKeyModal';
+import WhatsNewModal from './components/WhatsNewModal';
 
 const HomeView = lazy(() => import('./pages/HomeView'));
 const SearchView = lazy(() => import('./pages/SearchView'));
@@ -58,6 +59,7 @@ function App() {
   const [profileVersion, setProfileVersion] = useState(0);
   const [apiKeyInvalid, setApiKeyInvalid] = useState(null);
   const [showUpdateApiKey, setShowUpdateApiKey] = useState(false);
+  const [whatsNewVersion, setWhatsNewVersion] = useState(null);
 
   const pageRef = useRef(page);
   const selectedRef = useRef(selected);
@@ -236,6 +238,13 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const el = window.electron;
+    if (!el?.update) return;
+    const h = el.update.onWhatsNew((data) => setWhatsNewVersion(data.version));
+    return () => el.update.offWhatsNew(h);
+  }, []);
+
+  useEffect(() => {
     const mod = (e) => e.metaKey || e.ctrlKey;
     const handleKeyDown = (e) => {
       if (mod(e) && e.key === 'r') {
@@ -403,6 +412,12 @@ function App() {
           </main>
         </div>
       </div>
+      )}
+      {whatsNewVersion && (
+        <WhatsNewModal
+          version={whatsNewVersion}
+          onClose={() => setWhatsNewVersion(null)}
+        />
       )}
       <UpdateNotification />
     </div>

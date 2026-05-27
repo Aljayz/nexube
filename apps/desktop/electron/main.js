@@ -275,6 +275,15 @@ app.whenReady().then(() => {
   setTimeout(() => {
     const Store = require('./lib/store');
     const updaterStore = new Store({ name: 'updater-settings' });
+    const prevVersion = updaterStore.get('previousVersion', '');
+    if (prevVersion && prevVersion !== APP_VERSION) {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('show-whats-new', { version: APP_VERSION });
+      }
+    }
+    updaterStore.set('previousVersion', APP_VERSION);
+
     if (updaterStore.get('autoUpdaterEnabled', true)) {
       const { autoUpdater } = require('electron-updater');
       autoUpdater.checkForUpdates().catch(() => {});
