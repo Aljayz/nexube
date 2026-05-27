@@ -52,3 +52,6 @@ apps/desktop/resources/desk-vid-dl/
 venv/
 __pycache__/
 *.pyc
+
+# Others
+RELEASE_NOTES.md
