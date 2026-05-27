@@ -8,6 +8,14 @@ const PLAYER_SOURCES = [
     },
   },
   {
+    id: 'vidapi',
+    label: 'VidAPI',
+    url: (type, id, season, episode) => {
+      if (type === 'movie') return `https://vaplayer.ru/embed/movie/${id}`;
+      return `https://vaplayer.ru/embed/tv/${id}/${season}/${episode}`;
+    },
+  },
+  {
     id: 'vidsrc',
     label: 'VidSrc',
     url: (type, id, season, episode) => {
@@ -16,18 +24,10 @@ const PLAYER_SOURCES = [
     },
   },
   {
-    id: '2embed',
-    label: '2Embed',
-    url: (type, id, season, episode) => {
-      if (type === 'movie') return `https://www.2embed.cc/embed/${id}`;
-      return `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`;
-    },
-  },
-  {
     id: 'allmanga',
     label: 'AllManga',
     tag: 'ANIME',
-    url: async (type, id, season, episode) => {
+    url: (type, id, season, episode) => {
       return `https://allmanga.to/video?id=${id}&ep=${episode || 1}`;
     },
   },

@@ -722,6 +722,152 @@ function getPlayerServer() {
   });
 }
 
+async function resolveAllmanga({
+  title,
+  seasonNumber,
+  episodeNumber,
+  isMovie,
+  translationType,
+}) {
+  const season = seasonNumber || 1;
+  const dubSub = translationType === "dub" ? "dub" : "sub";
+
+  if (!isMovie) {
+    const splitParts = SPLIT_SEASONS[title.toLowerCase()]?.[season];
+    if (splitParts) {
+      let activePart = splitParts[0];
+      for (const part of splitParts) {
+        if (episodeNumber >= part.from) activePart = part;
+      }
+      const partEp = episodeNumber - activePart.offset;
+      if (activePart.showId) {
+        const result = await resolveEpisodeFromId(
+          activePart.showId,
+          String(partEp),
+          dubSub,
+        );
+        if (result) return result;
+      }
+    }
+  }
+
+  if (!isMovie) {
+    const hardcodedIds = HARDCODED_SHOW_IDS[title.toLowerCase()];
+    if (hardcodedIds) {
+      const showId =
+        hardcodedIds[season - 1] ?? hardcodedIds[hardcodedIds.length - 1];
+      const result = await resolveEpisodeFromId(
+        showId,
+        String(episodeNumber),
+        dubSub,
+      );
+      if (result) return result;
+    }
+  }
+
+  const anilistResult = isMovie
+    ? {
+        title,
+        romaji: null,
+        episodes: null,
+        nextTitle: null,
+        nextRomaji: null,
+      }
+    : await anilistSeasonTitle(title, season);
+
+  let searchTitle = anilistResult.title;
+  let adjustedEpisodeNumber = episodeNumber;
+
+  if (
+    !isMovie &&
+    anilistResult.episodes &&
+    episodeNumber > anilistResult.episodes &&
+    anilistResult.nextTitle
+  ) {
+    adjustedEpisodeNumber = episodeNumber - anilistResult.episodes;
+    searchTitle = anilistResult.nextTitle;
+  }
+
+  const epStr = isMovie ? "1" : String(adjustedEpisodeNumber);
+
+  const candidateSet = new Set([
+    searchTitle,
+    sanitizeTitle(searchTitle),
+    ...(anilistResult.romaji && searchTitle === anilistResult.title
+      ? [anilistResult.romaji]
+      : []),
+    ...(anilistResult.nextRomaji && searchTitle === anilistResult.nextTitle
+      ? [anilistResult.nextRomaji]
+      : []),
+    title,
+    sanitizeTitle(title),
+  ]);
+  const candidates = [...candidateSet].filter(Boolean);
+
+  async function searchAllmanga(query) {
+    const vars = {
+      search: {
+        allowAdult: true,
+        allowUnknown: false,
+        query: query.toLowerCase(),
+      },
+      limit: 40,
+      page: 1,
+      translationType: dubSub,
+      countryOrigin: "ALL",
+    };
+    const res = await allanimeGQL(vars, SEARCH_GQL);
+    if (!res.body) return null;
+    try {
+      const edges = JSON.parse(res.body)?.data?.shows?.edges;
+      return edges?.length ? edges : null;
+    } catch {
+      return null;
+    }
+  }
+
+  let edges = null,
+    matchedTitle = searchTitle;
+  for (const candidate of candidates) {
+    edges = await searchAllmanga(candidate);
+    if (edges) {
+      matchedTitle = candidate;
+      break;
+    }
+  }
+  if (!edges) return { ok: false, error: "No results for: " + searchTitle };
+
+  const titleLower = matchedTitle.toLowerCase();
+  const anime =
+    edges.find((e) => (e.name || "").toLowerCase() === titleLower) ||
+    edges[0];
+
+  const epCandidates = [epStr];
+  if (!epStr.includes(".")) epCandidates.push(epStr + ".0");
+
+  let sourceUrls = null;
+  for (const attempt of epCandidates) {
+    const epRes = await allanimeGQLEpisode({
+      showId: anime._id,
+      translationType: dubSub,
+      episodeString: attempt,
+    });
+    if (!epRes.body) continue;
+    const urls = parseEpisodeSourceUrls(epRes.body);
+    if (urls?.length) {
+      sourceUrls = urls;
+      break;
+    }
+  }
+  if (!sourceUrls?.length)
+    return { ok: false, error: "No sourceUrls for ep " + epStr };
+
+  const result = await trySourceUrls(sourceUrls);
+  if (result) return { ...result, searchTitle };
+
+  return { ok: false, error: "No playable link found" };
+}
+
 function register() {
   ipcMain.handle("set-player-video", async (_, { url, referer, startTime }) => {
     _currentVideoUrl = url;
@@ -731,157 +877,13 @@ function register() {
     return { playerUrl: `http://127.0.0.1:${server.address().port}/player` };
   });
 
-  ipcMain.handle(
-    "resolve-allmanga",
-    async (
-      _,
-      { title, seasonNumber, episodeNumber, isMovie, translationType },
-    ) => {
-      try {
-        const season = seasonNumber || 1;
-        const dubSub = translationType === "dub" ? "dub" : "sub";
-
-        if (!isMovie) {
-          const splitParts = SPLIT_SEASONS[title.toLowerCase()]?.[season];
-          if (splitParts) {
-            let activePart = splitParts[0];
-            for (const part of splitParts) {
-              if (episodeNumber >= part.from) activePart = part;
-            }
-            const partEp = episodeNumber - activePart.offset;
-            if (activePart.showId) {
-              const result = await resolveEpisodeFromId(
-                activePart.showId,
-                String(partEp),
-                dubSub,
-              );
-              if (result) return result;
-            }
-          }
-        }
-
-        if (!isMovie) {
-          const hardcodedIds = HARDCODED_SHOW_IDS[title.toLowerCase()];
-          if (hardcodedIds) {
-            const showId =
-              hardcodedIds[season - 1] ?? hardcodedIds[hardcodedIds.length - 1];
-            const result = await resolveEpisodeFromId(
-              showId,
-              String(episodeNumber),
-              dubSub,
-            );
-            if (result) return result;
-          }
-        }
-
-        const anilistResult = isMovie
-          ? {
-              title,
-              romaji: null,
-              episodes: null,
-              nextTitle: null,
-              nextRomaji: null,
-            }
-          : await anilistSeasonTitle(title, season);
-
-        let searchTitle = anilistResult.title;
-        let adjustedEpisodeNumber = episodeNumber;
-
-        if (
-          !isMovie &&
-          anilistResult.episodes &&
-          episodeNumber > anilistResult.episodes &&
-          anilistResult.nextTitle
-        ) {
-          adjustedEpisodeNumber = episodeNumber - anilistResult.episodes;
-          searchTitle = anilistResult.nextTitle;
-        }
-
-        const epStr = isMovie ? "1" : String(adjustedEpisodeNumber);
-
-        const candidateSet = new Set([
-          searchTitle,
-          sanitizeTitle(searchTitle),
-          ...(anilistResult.romaji && searchTitle === anilistResult.title
-            ? [anilistResult.romaji]
-            : []),
-          ...(anilistResult.nextRomaji &&
-          searchTitle === anilistResult.nextTitle
-            ? [anilistResult.nextRomaji]
-            : []),
-          title,
-          sanitizeTitle(title),
-        ]);
-        const candidates = [...candidateSet].filter(Boolean);
-
-        async function searchAllmanga(query) {
-          const vars = {
-            search: {
-              allowAdult: true,
-              allowUnknown: false,
-              query: query.toLowerCase(),
-            },
-            limit: 40,
-            page: 1,
-            translationType: dubSub,
-            countryOrigin: "ALL",
-          };
-          const res = await allanimeGQL(vars, SEARCH_GQL);
-          if (!res.body) return null;
-          try {
-            const edges = JSON.parse(res.body)?.data?.shows?.edges;
-            return edges?.length ? edges : null;
-          } catch {
-            return null;
-          }
-        }
-
-        let edges = null,
-          matchedTitle = searchTitle;
-        for (const candidate of candidates) {
-          edges = await searchAllmanga(candidate);
-          if (edges) {
-            matchedTitle = candidate;
-            break;
-          }
-        }
-        if (!edges)
-          return { ok: false, error: "No results for: " + searchTitle };
-
-        const titleLower = matchedTitle.toLowerCase();
-        const anime =
-          edges.find((e) => (e.name || "").toLowerCase() === titleLower) ||
-          edges[0];
-
-        const epCandidates = [epStr];
-        if (!epStr.includes(".")) epCandidates.push(epStr + ".0");
-
-        let sourceUrls = null;
-        for (const attempt of epCandidates) {
-          const epRes = await allanimeGQLEpisode({
-            showId: anime._id,
-            translationType: dubSub,
-            episodeString: attempt,
-          });
-          if (!epRes.body) continue;
-          const urls = parseEpisodeSourceUrls(epRes.body);
-          if (urls?.length) {
-            sourceUrls = urls;
-            break;
-          }
-        }
-        if (!sourceUrls?.length)
-          return { ok: false, error: "No sourceUrls for ep " + epStr };
-
-        const result = await trySourceUrls(sourceUrls);
-        if (result) return { ...result, searchTitle };
-
-        return { ok: false, error: "No playable link found" };
-      } catch (e) {
-        return { ok: false, error: e.message };
-      }
-    },
-  );
+  ipcMain.handle("resolve-allmanga", async (_, params) => {
+    try {
+      return await resolveAllmanga(params);
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
 }
 
-module.exports = { register };
+module.exports = { register, resolveAllmanga };

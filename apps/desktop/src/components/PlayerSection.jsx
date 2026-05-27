@@ -1,4 +1,5 @@
-import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, ExternalLink, Download } from 'lucide-react';
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useBlockedStats } from '../hooks/useBlockedStats';
 import BlockedStatsModal from './BlockedStatsModal';
@@ -50,9 +51,21 @@ export default function PlayerSection({
   onPrevEpisode,
   onNextEpisode,
   onClose,
+  onDownload,
 }) {
   const displayProgress = liveProgress || savedProgress;
   const { sessionTotal, alltimeTotal, showModal, setShowModal, getSessionDomains } = useBlockedStats(playerUrl);
+  const hasPlayed = liveProgress && (liveProgress.currentTime > 0 || !liveProgress.paused || liveProgress.duration > 0);
+  const [showPlayWarning, setShowPlayWarning] = useState(false);
+
+  const handleDownloadClick = () => {
+    if (!hasPlayed) {
+      setShowPlayWarning(true);
+      setTimeout(() => setShowPlayWarning(false), 3000);
+      return;
+    }
+    onDownload?.();
+  };
 
   if (!playerUrl) return null;
 
@@ -67,6 +80,22 @@ export default function PlayerSection({
             <ChevronLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
+          {selectedSource?.id !== 'allmanga' && (
+            <div className="relative">
+              <button
+                onClick={handleDownloadClick}
+                className={`p-sm transition-colors ${hasPlayed ? 'text-accent hover:text-accent/80' : 'text-text-muted hover:text-text-primary'}`}
+                title={hasPlayed ? 'Download video' : 'Play the video first to download'}
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              {showPlayWarning && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded whitespace-nowrap shadow-lg z-50">
+                  Play the video first before downloading
+                </div>
+              )}
+            </div>
+          )}
           <h2 className="text-sm font-medium text-text-primary truncate flex-1 text-center">
             {details?.title}
             {currentEpisode && (

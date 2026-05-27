@@ -229,6 +229,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
           onPrevEpisode={() => handleEpisodeNavigation(-1)}
           onNextEpisode={() => handleEpisodeNavigation(1)}
           onClose={handleClosePlayer}
+          onDownload={() => setShowDownload(true)}
         />
 
         {trailerUrl && (
@@ -303,7 +304,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
         />
       )}
       {showSubtitles && <SubtitleModal tmdbId={media.tmdbId} type={media.type} onClose={() => setShowSubtitles(false)} />}
-      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} onClose={() => setShowDownload(false)} />}
+      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} isAnime={details?.isAnime} onClose={() => setShowDownload(false)} />}
     </div>
   );
 }

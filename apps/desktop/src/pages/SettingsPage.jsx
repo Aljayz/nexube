@@ -79,19 +79,34 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
       <h1 className="text-2xl font-bold text-text-primary mb-lg">Settings</h1>
 
       <div className="space-y-lg">
-        { isMaster && (<SettingsSection icon={Settings} title="General" description="API keys and global preferences">
-          <GeneralSettings
-            apiKey={apiKey}
-            setApiKey={setApiKey}
-            kidsFilterCountry={kidsFilterCountry}
-            setKidsFilterCountry={setKidsFilterCountry}
-            onSaveKidsCountry={saveKidsFilterCountry}
-            activeProfile={activeProfile}
-          />
-        </SettingsSection>)}
+        {isMaster && (
+          <SettingsSection icon={Settings} title="General" description="API keys and global preferences">
+            <GeneralSettings
+              apiKey={apiKey}
+              setApiKey={setApiKey}
+              kidsFilterCountry={kidsFilterCountry}
+              setKidsFilterCountry={setKidsFilterCountry}
+              onSaveKidsCountry={saveKidsFilterCountry}
+              activeProfile={activeProfile}
+            />
+          </SettingsSection>
+        )}
+
         <SettingsSection icon={User} title="My Profile" description="Manage your avatar and security settings">
           <ProfileSettings activeProfile={activeProfile} onSaved={handleProfilesSaved} />
         </SettingsSection>
+
+        {isMaster && (
+          <SettingsSection icon={Users} title="Members" description="Add, edit, or remove profiles">
+            <ProfilesSettings
+              profiles={profiles}
+              profilesLoading={profilesLoading}
+              onAddProfile={handleAddProfile}
+              onDeleteProfile={handleDeleteProfile}
+              onSaved={handleProfilesSaved}
+            />
+          </SettingsSection>
+        )}
 
         <SettingsSection icon={Palette} title="Appearance" description="Customize the look and feel of the app">
           <AppearanceSettings
@@ -110,33 +125,21 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
         </SettingsSection>
 
         {isMaster && (
-          <>
-            <SettingsSection icon={Users} title="Members" description="Add, edit, or remove profiles">
-              <ProfilesSettings
-                profiles={profiles}
-                profilesLoading={profilesLoading}
-                onAddProfile={handleAddProfile}
-                onDeleteProfile={handleDeleteProfile}
-                onSaved={handleProfilesSaved}
-              />
-            </SettingsSection>
-
-            <SettingsSection icon={Database} title="Memory & Data" description="Manage cache, export, and data storage">
-              <DataSettings />
-            </SettingsSection>
-          </>
+          <SettingsSection icon={Database} title="Memory & Data" description="Manage cache, export, and data storage">
+            <DataSettings />
+          </SettingsSection>
         )}
 
         <SettingsSection icon={RefreshCw} title="Updates" description="Check for new versions and manage update preferences">
           <UpdateSettings />
         </SettingsSection>
 
-        <SettingsSection icon={Info} title="About" description="App information and features">
-          <AboutSettings />
-        </SettingsSection>
-
         <SettingsSection icon={MessageSquare} title="Feedback" description="Report issues or suggest features">
           <FeedbackReport activeProfile={activeProfile} />
+        </SettingsSection>
+
+        <SettingsSection icon={Info} title="About" description="App information and features">
+          <AboutSettings />
         </SettingsSection>
 
         <SettingsFooter />

@@ -12,7 +12,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron . --no-sandbox\"",
-    "electron:build": "vite build && electron-builder --publish=never"
+    "electron:build": "vite build && electron-builder --publish=never",
+    "build:downloader": "python ../desk-vid-dl/build.py"
   },
   "dependencies": {
     "@nexube/player-engine": "workspace:*",
@@ -75,8 +76,8 @@
       "icon": "public/Logo.ico",
       "extraResources": [
         {
-          "from": "resources/vid-dl/windows/vid-dl",
-          "to": "vid-dl",
+          "from": "resources/desk-vid-dl/windows/desk-vid-dl",
+          "to": "desk-vid-dl",
           "filter": [
             "**/*"
           ]
@@ -102,8 +103,8 @@
       },
       "extraResources": [
         {
-          "from": "resources/vid-dl/linux/vid-dl",
-          "to": "vid-dl",
+          "from": "resources/desk-vid-dl/linux/desk-vid-dl",
+          "to": "desk-vid-dl",
           "filter": [
             "**/*"
           ]

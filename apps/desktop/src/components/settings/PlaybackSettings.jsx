@@ -40,7 +40,7 @@ export default function PlaybackSettings({ activeProfile, onProfileUpdated }) {
           Select your default streaming source. Anime content will automatically use AllManga.
         </p>
         <div className="flex flex-wrap gap-sm">
-          {['videasy', 'vidsrc', '2embed', 'allmanga'].map((source) => (
+          {['videasy', 'vidapi', 'vidsrc', 'allmanga'].map((source) => (
             <button
               key={source}
               onClick={() => handleSavePreferredSource(source)}

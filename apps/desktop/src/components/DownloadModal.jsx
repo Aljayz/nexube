@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, Settings, ExternalLink } from 'lucide-react';
+import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, Settings } from 'lucide-react';
+import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useDownloads } from '../hooks/useDownloads';
 
-const RELEASE_URL = 'https://github.com/truelockmc/vid-dl-cli-only/releases/latest';
-
-function DownloadModal({ media, activeProfile, sourceId, onClose }) {
+function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
   const profileId = activeProfile?.id || 'master-id';
   const { downloads, startDownload } = useDownloads(profileId);
   const [downloading, setDownloading] = useState(false);
@@ -26,14 +25,9 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
   const [usingBundled, setUsingBundled] = useState(false);
   const [downloadPath, setDownloadPath] = useState(activeProfile?.downloadPath || '');
   const [settingPath, setSettingPath] = useState(false);
+  const [selectedSource, setSelectedSource] = useState(sourceId || 'videasy');
+  const [translationType, setTranslationType] = useState('sub');
   const abortRef = useRef(false);
-
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
-  const binaryHint = ua.includes('win')
-    ? 'Windows_x64-portable'
-    : ua.includes('mac')
-      ? 'macOS (compile yourself)'
-      : 'Linux_x64-portable';
 
   useEffect(() => {
     if (media?.type === 'tv') {
@@ -45,7 +39,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
     let mounted = true;
     setChecking(true);
 
-    window.electron?.downloads?.checkBundledDownloader().then((result) => {
+    window.electron?.deskDownloads?.checkBundled().then((result) => {
       if (!mounted) return;
       if (result.exists) {
         setDownloader(result);
@@ -55,7 +49,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
       }
 
       if (downloaderFolder) {
-        window.electron?.downloads?.checkDownloader(downloaderFolder).then((manualResult) => {
+        window.electron?.deskDownloads?.checkFolder(downloaderFolder).then((manualResult) => {
           if (!mounted) return;
           setDownloader(manualResult);
           setUsingBundled(false);
@@ -115,7 +109,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
   }
 
   const pickBinaryFolder = async () => {
-    const folder = await window.electron?.downloads?.pickFolder();
+    const folder = await window.electron?.deskDownloads?.pickFolder(downloaderFolder);
     if (folder) {
       setDownloaderFolder(folder);
       try {
@@ -125,7 +119,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
   };
 
   const pickDownloadFolder = async () => {
-    const folder = await window.electron?.downloads?.pickFolder();
+    const folder = await window.electron?.deskDownloads?.pickFolder(downloadPath);
     if (folder) {
       setDownloadPath(folder);
       await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
@@ -156,9 +150,10 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
       season: media.type === 'tv' ? season : undefined,
       episode: media.type === 'tv' ? episode : undefined,
       episodeTitle: media.type === 'tv' ? episodeTitle : undefined,
-      sourceId,
-      binaryPath: usingBundled ? null : downloader.binaryPath,
+      sourceId: selectedSource,
+      binaryToken: usingBundled ? null : downloader.token,
       downloadPath,
+      translationType: selectedSource === 'allmanga' ? translationType : undefined,
     });
 
     if (result?.success) {
@@ -317,35 +312,74 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
             </div>
           )}
 
+          <div className="mb-lg">
+            <label className="text-sm font-medium text-text-primary mb-sm block">Source</label>
+            <select
+              value={selectedSource}
+              onChange={(e) => setSelectedSource(e.target.value)}
+              className="w-full px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
+            >
+              {PLAYER_SOURCES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}{s.tag ? ` (${s.tag})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedSource === 'vidsrc' && (
+            <div className="mb-lg p-md bg-background border border-border rounded-card">
+              <p className="text-sm text-text-muted flex items-center gap-sm">
+                <AlertCircle className="w-8 h-8 flex-shrink-0 text-accent" />
+                Quick download is not supported for VidSrc. Open the player and click the download button there.
+              </p>
+            </div>
+          )}
+
+          {selectedSource === 'allmanga' && !isAnime && (
+            <div className="mb-lg p-md bg-background border border-border rounded-card">
+              <p className="text-sm text-text-muted flex items-center gap-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-accent" />
+                AllManga is only available for anime content.
+              </p>
+            </div>
+          )}
+
+          {selectedSource === 'allmanga' && isAnime && (
+            <div className="mb-lg">
+              <label className="text-sm font-medium text-text-primary mb-sm block">Audio</label>
+              <div className="flex gap-sm">
+                <button
+                  onClick={() => setTranslationType('sub')}
+                  className={`flex-1 px-md py-sm rounded-button text-sm font-medium transition-colors ${
+                    translationType === 'sub'
+                      ? 'bg-accent text-background'
+                      : 'bg-surface-hover text-text-primary hover:bg-border'
+                  }`}
+                >
+                  SUB
+                </button>
+                <button
+                  onClick={() => setTranslationType('dub')}
+                  className={`flex-1 px-md py-sm rounded-button text-sm font-medium transition-colors ${
+                    translationType === 'dub'
+                      ? 'bg-accent text-background'
+                      : 'bg-surface-hover text-text-primary hover:bg-border'
+                  }`}
+                >
+                  DUB
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Downloader setup ──────────────────────────────────────── */}
           {!downloader?.exists && !usingBundled && (
             <div className="mb-lg p-md bg-background border border-border rounded-card">
-              <h4 className="text-sm font-semibold text-text-primary mb-sm">Set up Video Downloader</h4>
-              <ol className="text-sm text-text-muted space-y-xs mb-md">
-                <li className="flex items-start gap-sm">
-                  <span className="text-accent font-mono">1.</span>
-                  <span>
-                    Download the latest release from{' '}
-                    <a
-                      href={RELEASE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline inline-flex items-center gap-2xs"
-                    >
-                      GitHub <ExternalLink className="w-3 h-3" />
-                    </a>
-                    {' '}for your OS: <code className="px-xs py-2xs bg-surface rounded text-xs">{binaryHint}</code>
-                  </span>
-                </li>
-                <li className="flex items-start gap-sm">
-                  <span className="text-accent font-mono">2.</span>
-                  <span>Extract the release into a folder</span>
-                </li>
-                <li className="flex items-start gap-sm">
-                  <span className="text-accent font-mono">3.</span>
-                  <span>Select that folder below (must contain <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code>)</span>
-                </li>
-              </ol>
+              <h4 className="text-sm font-semibold text-text-primary mb-sm">Select Downloader Folder</h4>
+              <p className="text-sm text-text-muted mb-md">
+                Bundled downloader not found. Select a folder containing a compatible downloader binary (must contain <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code>).
+              </p>
 
               <div className="flex items-center gap-sm">
                 <button className="btn-secondary text-sm flex items-center gap-sm" onClick={pickBinaryFolder}>
@@ -369,10 +403,10 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
                   {downloader.reason === 'folder_permission' && 'Permission denied.'}
                   {downloader.reason === 'folder_unreadable' && 'Folder could not be read.'}
                   {downloader.reason === 'no_internal' && (
-                    <>Missing <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code> folder. Extract the full release.</>
+                    <>Missing <code className="px-xs py-2xs bg-surface rounded text-xs">_internal</code> folder.</>
                   )}
                   {(!downloader.reason || downloader.reason === 'no_executable') && (
-                    <>No executable found. On Linux, run <code className="px-xs py-2xs bg-surface rounded text-xs">chmod +x</code> on the binary.</>
+                    <>No executable found in the selected folder.</>
                   )}
                 </div>
               )}
@@ -439,7 +473,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose }) {
             </div>
           )}
 
-          {!checking && downloader?.exists && downloadStatus !== 'ok' && (
+          {!checking && downloader?.exists && downloadStatus !== 'ok' && selectedSource !== 'vidsrc' && !(selectedSource === 'allmanga' && !isAnime) && (
             <button
               onClick={handleDownload}
               disabled={downloading}
