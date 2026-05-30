@@ -11,6 +11,7 @@ function formatTime(seconds) {
 }
 
 export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) {
+  const normalizedPath = filePath.replace(/^local-media:\/\//, 'media://');
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -37,7 +38,7 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
       const codes = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
       const msg = codes[code] || `Unknown (${code})`;
       setError('Failed to load video');
-      setErrorDetail({ code: msg, message: ve?.message || '', filePath });
+      setErrorDetail({ code: msg, message: ve?.message || '', filePath: normalizedPath });
     };
     const onEnded = () => { setPlaying(false); onVideoEnded?.(); };
     const onCanPlay = () => { setError(null); setErrorDetail(null); };
@@ -132,7 +133,7 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
           <video
             ref={videoRef}
             className="w-full h-full"
-            src={filePath}
+            src={normalizedPath}
             key={filePath}
             controls
             onClick={togglePlay}

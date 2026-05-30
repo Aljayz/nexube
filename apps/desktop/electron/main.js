@@ -240,7 +240,7 @@ app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,Insec
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'local-media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
-  { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
 ]);
 
 app.whenReady().then(() => {
