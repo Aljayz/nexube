@@ -1,6 +1,7 @@
 const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
 
@@ -296,15 +297,7 @@ app.whenReady().then(() => {
       const rangeHeader = request.headers.get('Range');
 
       function streamFile(start, end) {
-        const readStream = fs.createReadStream(filePath, { start, end });
-        return new ReadableStream({
-          start(controller) {
-            readStream.on('data', (chunk) => controller.enqueue(chunk));
-            readStream.on('end', () => controller.close());
-            readStream.on('error', (err) => controller.error(err));
-          },
-          cancel() { readStream.destroy(); },
-        });
+        return Readable.toWeb(fs.createReadStream(filePath, { start, end }));
       }
 
       if (rangeHeader) {

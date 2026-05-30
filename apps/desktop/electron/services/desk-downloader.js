@@ -170,6 +170,7 @@ function startDownload({
           size: typeof entry.size === 'string' ? 0 : entry.size || 0,
           startedAt: entry.startedAt ? new Date(entry.startedAt).toISOString() : null,
           completedAt: entry.completedAt ? new Date(entry.completedAt).toISOString() : null,
+          error: entry.lastMessage || null,
         });
       } catch {}
     };
