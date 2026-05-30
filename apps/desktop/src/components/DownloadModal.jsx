@@ -11,9 +11,9 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
 }
 
-function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onProfileUpdated }) {
+function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onProfileUpdated, relatedMovies }) {
   const profileId = activeProfile?.id || 'master-id';
-  const { downloads, startDownload } = useDownloads(profileId);
+  const { downloads, startDownload, startBatchDownload } = useDownloads(profileId);
   const [downloading, setDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState(null);
   const [error, setError] = useState(null);
@@ -40,7 +40,24 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   }, []);
   const [selectedSource, setSelectedSource] = useState(sourceId || 'videasy');
   const [translationType, setTranslationType] = useState('sub');
+  const [batchQueued, setBatchQueued] = useState(false);
+  const [selectedEpisodes, setSelectedEpisodes] = useState(new Set());
+  const [selectedCollectionItems, setSelectedCollectionItems] = useState(new Set());
   const abortRef = useRef(false);
+
+  useEffect(() => {
+    if (episodes.length > 0) {
+      setSelectedEpisodes(new Set(episodes.map((ep) => ep.episode_number)));
+    }
+  }, [episodes]);
+
+  useEffect(() => {
+    if (relatedMovies?.length > 0) {
+      setSelectedCollectionItems(new Set([media.id, ...relatedMovies.map((m) => m.id)]));
+    } else {
+      setSelectedCollectionItems(new Set());
+    }
+  }, [relatedMovies]);
 
   useEffect(() => {
     if (media?.type === 'tv') {
@@ -181,6 +198,97 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const handleClose = () => {
     abortRef.current = true;
     onClose();
+  };
+
+  const toggleEpisode = (epNum) => {
+    setSelectedEpisodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(epNum)) next.delete(epNum); else next.add(epNum);
+      return next;
+    });
+  };
+
+  const toggleAllEpisodes = (select) => {
+    if (select) {
+      setSelectedEpisodes(new Set(episodes.map((ep) => ep.episode_number)));
+    } else {
+      setSelectedEpisodes(new Set());
+    }
+  };
+
+  const toggleCollectionItem = (id) => {
+    setSelectedCollectionItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllCollectionItems = (select) => {
+    if (select) {
+      setSelectedCollectionItems(new Set([media.id, ...(relatedMovies || []).map((m) => m.id)]));
+    } else {
+      setSelectedCollectionItems(new Set());
+    }
+  };
+
+  const handleBatchDownload = async (batchType) => {
+    if (!downloader?.exists) return;
+    if (!downloadPath) {
+      setSettingPath(true);
+      return;
+    }
+
+    let collectionId;
+    let payload;
+
+    if (batchType === 'collection') {
+      try {
+        const details = await window.electron?.tmdb?.fetch(`/movie/${media.tmdbId}`);
+        collectionId = details?.belongs_to_collection?.id;
+      } catch {}
+
+      const currentItem = { mediaId: media.id, title: media.title, tmdbId: media.tmdbId };
+      const otherItems = (relatedMovies || [])
+        .filter((m) => selectedCollectionItems.has(m.id))
+        .map((m) => ({ mediaId: m.id, title: m.title, tmdbId: m.tmdbId }));
+      payload = {
+        type: 'collection',
+        mediaId: media.id,
+        title: media.title,
+        tmdbId: media.tmdbId,
+        collectionId,
+        items: [currentItem, ...otherItems],
+        sourceId: selectedSource,
+        binaryToken: usingBundled ? null : downloader.token,
+        downloadPath,
+        translationType: selectedSource === 'allmanga' ? translationType : undefined,
+      };
+    } else {
+      const selectedEpData = episodes
+        .filter((ep) => selectedEpisodes.has(ep.episode_number))
+        .map((ep) => ({ episode: ep.episode_number, episodeTitle: ep.name }));
+      payload = {
+        type: 'season',
+        mediaId: media.id,
+        title: media.title,
+        tmdbId: media.tmdbId,
+        season,
+        episodes: selectedEpData,
+        sourceId: selectedSource,
+        binaryToken: usingBundled ? null : downloader.token,
+        downloadPath,
+        translationType: selectedSource === 'allmanga' ? translationType : undefined,
+      };
+    }
+
+    const result = await startBatchDownload(payload);
+    if (result?.success) {
+      setBatchQueued(true);
+      setTimeout(() => onClose(), 2000);
+    } else {
+      setError(result?.error || 'Failed to queue batch');
+    }
   };
 
   const activeDownload = downloadStatus?.id
@@ -324,6 +432,32 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
                   ))}
                 </select>
               </div>
+              {media.type === 'tv' && episodes.length > 0 && (
+                <div className="mt-md">
+                  <div className="flex items-center justify-between mb-sm">
+                    <span className="text-xs font-medium text-text-muted">Select episodes</span>
+                    <div className="flex gap-sm">
+                      <button onClick={() => toggleAllEpisodes(true)} className="text-xs text-accent hover:underline">All</button>
+                      <button onClick={() => toggleAllEpisodes(false)} className="text-xs text-text-muted hover:text-text-primary">None</button>
+                    </div>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {episodes.map((ep) => (
+                      <label key={ep.episode_number} className="flex items-center gap-sm px-sm py-2xs hover:bg-surface-hover rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedEpisodes.has(ep.episode_number)}
+                          onChange={() => toggleEpisode(ep.episode_number)}
+                          className="accent-accent"
+                        />
+                        <span className="text-xs text-text-primary truncate">
+                          E{ep.episode_number} - {ep.name || `Episode ${ep.episode_number}`}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -384,6 +518,41 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
                 >
                   DUB
                 </button>
+              </div>
+            </div>
+          )}
+
+          {media.type === 'movie' && relatedMovies?.length > 0 && (
+            <div className="mb-lg">
+              <div className="flex items-center justify-between mb-sm">
+                <span className="text-xs font-medium text-text-muted">Select movies in collection</span>
+                <div className="flex gap-sm">
+                  <button onClick={() => toggleAllCollectionItems(true)} className="text-xs text-accent hover:underline">All</button>
+                  <button onClick={() => toggleAllCollectionItems(false)} className="text-xs text-text-muted hover:text-text-primary">None</button>
+                </div>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                <label className="flex items-center gap-sm px-sm py-2xs bg-surface-hover rounded cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedCollectionItems.has(media.id)}
+                    onChange={() => toggleCollectionItem(media.id)}
+                    className="accent-accent"
+                  />
+                  <span className="text-xs text-text-primary font-medium truncate">{media.title}</span>
+                  <span className="text-xs text-text-muted flex-shrink-0">(current)</span>
+                </label>
+                {relatedMovies.map((m) => (
+                  <label key={m.id} className="flex items-center gap-sm px-sm py-2xs hover:bg-surface-hover rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedCollectionItems.has(m.id)}
+                      onChange={() => toggleCollectionItem(m.id)}
+                      className="accent-accent"
+                    />
+                    <span className="text-xs text-text-primary truncate">{m.title}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
@@ -485,24 +654,53 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
             </div>
           )}
 
-          {!checking && downloader?.exists && downloadStatus !== 'ok' && selectedSource !== 'vidsrc' && !(selectedSource === 'allmanga' && !isAnime) && (
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-sm"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Downloading…
-                </>
-              ) : (
-                <>
+          {batchQueued && (
+            <div className="mb-lg p-sm bg-success/10 border border-success/30 rounded text-sm text-success flex items-center gap-sm">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Added to queue! Track progress in Downloads.</span>
+            </div>
+          )}
+
+          {!checking && downloader?.exists && downloadStatus !== 'ok' && selectedSource !== 'vidsrc' && !(selectedSource === 'allmanga' && !isAnime) && !batchQueued && (
+            <div className="flex gap-sm">
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-sm"
+              >
+                {downloading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Downloading…
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    {media.type === 'tv' ? `Download S${season}E${episode}` : 'Download'}
+                  </>
+                )}
+              </button>
+
+              {media.type === 'tv' && episodes.length > 0 && selectedEpisodes.size > 0 && (
+                <button
+                  onClick={() => handleBatchDownload('season')}
+                  className="btn-secondary flex items-center justify-center gap-sm text-sm whitespace-nowrap"
+                >
                   <Download className="w-4 h-4" />
-                  {media.type === 'tv' ? `Download S${season}E${episode}` : 'Download'}
-                </>
+                  {selectedEpisodes.size === episodes.length ? `Season ${season}` : `${selectedEpisodes.size} selected`}
+                </button>
               )}
-            </button>
+
+              {media.type === 'movie' && relatedMovies?.length > 0 && selectedCollectionItems.size > 1 && (
+                <button
+                  onClick={() => handleBatchDownload('collection')}
+                  className="btn-secondary flex items-center justify-center gap-sm text-sm whitespace-nowrap"
+                >
+                  <Download className="w-4 h-4" />
+                  {selectedCollectionItems.size === relatedMovies.length + 1 ? 'Collection' : `${selectedCollectionItems.size} selected`}
+                </button>
+              )}
+            </div>
           )}
 
           {downloadStatus === 'ok' && (

@@ -110,7 +110,11 @@ contextBridge.exposeInMainWorld('electron', {
     stop: (id) => ipcRenderer.invoke('desk-download:stop', id),
     kill: (id) => ipcRenderer.invoke('desk-download:kill', id),
     delete: (id) => ipcRenderer.invoke('desk-download:delete', id),
-    killAll: () => ipcRenderer.invoke('desk-download:kill-all'),
+     killAll: () => ipcRenderer.invoke('desk-download:kill-all'),
+     batchStopDelete: (batchId) => ipcRenderer.invoke('desk-download:batch-stop-delete', batchId),
+     batchPause: (batchId) => ipcRenderer.invoke('desk-download:batch-pause', batchId),
+     batchResume: (batchId) => ipcRenderer.invoke('desk-download:batch-resume', batchId),
+     batchStop: (batchId) => ipcRenderer.invoke('desk-download:batch-stop', batchId),
     list: (profileId) => ipcRenderer.invoke('desk-download:list', profileId),
     getActive: (profileId) => ipcRenderer.invoke('desk-download:getActive', profileId),
     play: (id) => ipcRenderer.invoke('desk-download:play', id),
@@ -122,15 +126,24 @@ contextBridge.exposeInMainWorld('electron', {
     scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
     showInFolder: (filePath) => ipcRenderer.invoke('desk-download:show-in-folder', filePath),
     readLog: (logPath) => ipcRenderer.invoke('desk-download:read-log', logPath),
-    onProgress: (callback) => {
-      const handler = (_, data) => callback(data);
-      ipcRenderer.on('desk-download:progress', handler);
-      return handler;
-    },
-    offProgress: (handler) => {
-      if (handler) ipcRenderer.removeListener('desk-download:progress', handler);
-    },
-  },
+     onProgress: (callback) => {
+       const handler = (_, data) => callback(data);
+       ipcRenderer.on('desk-download:progress', handler);
+       return handler;
+     },
+     offProgress: (handler) => {
+       if (handler) ipcRenderer.removeListener('desk-download:progress', handler);
+     },
+     queueBatch: (params) => ipcRenderer.invoke('desk-download:queue-batch', params),
+     onBatchProgress: (callback) => {
+       const handler = (_, data) => callback(data);
+       ipcRenderer.on('download:batch-progress', handler);
+       return handler;
+     },
+     offBatchProgress: (handler) => {
+       if (handler) ipcRenderer.removeListener('download:batch-progress', handler);
+     },
+   },
   onM3u8Found: (callback) => {
     const handler = (_, url) => callback(url);
     ipcRenderer.on('m3u8-found', handler);

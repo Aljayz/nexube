@@ -4,6 +4,14 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 
+let ffmpegPath = null;
+try {
+  const resolved = require('ffmpeg-static');
+  if (resolved && typeof resolved === 'string' && fs.existsSync(resolved)) {
+    ffmpegPath = resolved;
+  }
+} catch {}
+
 const activeProcs = new Map();
 const binaryTokenRegistry = new Map();
 
@@ -197,9 +205,14 @@ function startDownload({
       fs.chmodSync(binaryPath, 0o755);
     } catch {}
 
+    const env = { ...process.env };
+    if (ffmpegPath) {
+      env.PATH = `${path.dirname(ffmpegPath)}:${env.PATH || ''}`;
+    }
     const proc = spawn(binaryPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
+      env,
     });
     entry._stdin = proc.stdin;
     activeProcs.set(id, proc);

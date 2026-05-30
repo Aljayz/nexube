@@ -244,7 +244,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.whenReady().then(() => {
-  getDatabase();
+  getDatabase(path.join(app.getPath('userData'), 'nexube.db'));
   blockStats.loadBlockStats();
 
   registerStorage();
@@ -280,7 +280,11 @@ app.whenReady().then(() => {
 
   protocol.handle('media', (request) => {
     try {
-      const filePath = decodeURIComponent(request.url.replace('media://', ''));
+      const parsed = new URL(request.url);
+      let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
+      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
+        filePath = filePath.slice(1);
+      }
       console.log(`[media] serving file: ${filePath}`);
       return net.fetch(pathToFileURL(filePath).toString());
     } catch (err) {

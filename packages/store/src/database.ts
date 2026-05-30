@@ -95,7 +95,7 @@ const SCHEMA = `
     file_path TEXT,
     quality TEXT,
     size INTEGER DEFAULT 0,
-    status TEXT CHECK(status IN ('downloading','completed','failed','paused','cancelled')),
+    status TEXT DEFAULT 'queued',
     progress_percent REAL DEFAULT 0,
     progress_bytes INTEGER DEFAULT 0,
     total_bytes INTEGER,
@@ -132,6 +132,25 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_downloads_profile ON downloads(profile_id);
   CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
   CREATE INDEX IF NOT EXISTS idx_downloads_media ON downloads(media_id);
+
+  CREATE TABLE IF NOT EXISTS batches (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('season','collection')),
+    media_id TEXT,
+    season INTEGER,
+    collection_id INTEGER,
+    total INTEGER NOT NULL DEFAULT 0,
+    completed INTEGER NOT NULL DEFAULT 0,
+    failed INTEGER NOT NULL DEFAULT 0,
+    skipped INTEGER NOT NULL DEFAULT 0,
+    status TEXT DEFAULT 'queuing',
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_batches_profile ON batches(profile_id);
 `;
 
 const SEED_PROFILES: Profile[] = [
@@ -249,6 +268,40 @@ function migrateDatabase(): void {
     } catch {}
     try {
       db!.exec("DELETE FROM app_settings WHERE key = 'preferredSource' OR key = 'autoMarkThreshold'");
+    } catch {}
+    try {
+      db!.exec('ALTER TABLE downloads ADD COLUMN batch_id TEXT');
+    } catch {}
+
+    try {
+      const ddl = db!.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='downloads'").get() as { sql: string } | undefined;
+      if (ddl && ddl.sql && ddl.sql.includes('CHECK')) {
+        const cols = (db!.prepare("PRAGMA table_info(downloads)").all() as any[]).map((c: any) => `"${c.name}"`);
+        db!.exec(`
+          CREATE TABLE downloads_new (${cols.join(', ')});
+          INSERT INTO downloads_new SELECT * FROM downloads;
+          DROP TABLE downloads;
+          ALTER TABLE downloads_new RENAME TO downloads;
+        `);
+      }
+    } catch {}
+
+    try {
+      db!.exec("ALTER TABLE batches ADD COLUMN status TEXT DEFAULT 'queuing'");
+    } catch {}
+
+    try {
+      const bddl = db!.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='batches'").get() as { sql: string } | undefined;
+      if (bddl && bddl.sql && bddl.sql.includes('queuing')) {
+        // Recreate batches table with updated status CHECK values
+        const cols = (db!.prepare("PRAGMA table_info(batches)").all() as any[]).map((c: any) => `"${c.name}"`);
+        db!.exec(`
+          CREATE TABLE batches_new (${cols.join(', ')});
+          INSERT INTO batches_new SELECT * FROM batches;
+          DROP TABLE batches;
+          ALTER TABLE batches_new RENAME TO batches;
+        `);
+      }
     } catch {}
   } catch (err) {
     console.error('Migration error:', err);
@@ -664,10 +717,12 @@ export function addDownload(download: {
   episodeName?: string;
   sourceId?: string;
   collectionId?: number;
+  batchId?: string;
+  status?: string;
 }): void {
   db!.prepare(
-    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, collection_id, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'downloading')`
+    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, collection_id, batch_id, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     download.id,
     download.profileId,
@@ -681,8 +736,68 @@ export function addDownload(download: {
     download.episode || null,
     download.episodeName || null,
     download.sourceId || null,
-    download.collectionId || null
+    download.collectionId || null,
+    download.batchId || null,
+    download.status || 'downloading'
   );
+}
+
+export function addBatch(batch: {
+  id: string;
+  profileId: string;
+  title: string;
+  type: 'season' | 'collection';
+  mediaId?: string;
+  season?: number;
+  collectionId?: number;
+  total: number;
+}): void {
+  db!.prepare(
+    `INSERT INTO batches (id, profile_id, title, type, media_id, season, collection_id, total)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    batch.id,
+    batch.profileId,
+    batch.title,
+    batch.type,
+    batch.mediaId || null,
+    batch.season || null,
+    batch.collectionId || null,
+    batch.total
+  );
+}
+
+export function updateBatch(id: string, updates: {
+  completed?: number;
+  failed?: number;
+  skipped?: number;
+  status?: string;
+}): void {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.completed !== undefined) { fields.push('completed = ?'); values.push(updates.completed); }
+  if (updates.failed !== undefined) { fields.push('failed = ?'); values.push(updates.failed); }
+  if (updates.skipped !== undefined) { fields.push('skipped = ?'); values.push(updates.skipped); }
+  if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+
+  if (fields.length === 0) return;
+  values.push(id);
+  db!.prepare(`UPDATE batches SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function getBatch(id: string): any | null {
+  return db!.prepare('SELECT * FROM batches WHERE id = ?').get(id) || null;
+}
+
+export function getDownloadsByBatch(batchId: string): any[] {
+  return db!.prepare(
+    `SELECT d.*, gm.title, gm.type, gm.poster_path, gm.tmdb_id
+     FROM downloads d
+     INNER JOIN global_media gm ON d.media_id = gm.id
+     WHERE d.batch_id = ?
+     ORDER BY d.added_at ASC`
+  ).all(batchId);
 }
 
 export function updateDownload(id: string, updates: {
@@ -698,6 +813,9 @@ export function updateDownload(id: string, updates: {
   startedAt?: string;
   completedAt?: string;
   episodeName?: string;
+  m3u8Url?: string;
+  referer?: string;
+  cookies?: string;
 }): void {
   const fields: string[] = [];
   const values: any[] = [];
@@ -714,6 +832,9 @@ export function updateDownload(id: string, updates: {
   if (updates.startedAt !== undefined) { fields.push('started_at = ?'); values.push(updates.startedAt); }
   if (updates.completedAt !== undefined) { fields.push('completed_at = ?'); values.push(updates.completedAt); }
   if (updates.episodeName !== undefined) { fields.push('episode_name = ?'); values.push(updates.episodeName); }
+  if (updates.m3u8Url !== undefined) { fields.push('m3u8_url = ?'); values.push(updates.m3u8Url); }
+  if (updates.referer !== undefined) { fields.push('referer = ?'); values.push(updates.referer); }
+  if (updates.cookies !== undefined) { fields.push('cookies = ?'); values.push(updates.cookies); }
 
   if (fields.length === 0) return;
   values.push(id);
@@ -722,9 +843,10 @@ export function updateDownload(id: string, updates: {
 
 export function getDownloads(profileId: string): any[] {
   return db!.prepare(
-    `SELECT d.*, gm.title, gm.type, gm.poster_path, gm.tmdb_id
+    `SELECT d.*, gm.title, gm.type, gm.poster_path, gm.tmdb_id, b.title AS batch_title, b.status AS batch_status
      FROM downloads d
      INNER JOIN global_media gm ON d.media_id = gm.id
+     LEFT JOIN batches b ON d.batch_id = b.id
      WHERE d.profile_id = ?
      ORDER BY d.added_at DESC`
   ).all(profileId);

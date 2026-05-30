@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
-import { Play } from 'lucide-react';
+import { Play, Trash2 } from 'lucide-react';
 
-export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay }) {
+export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, onRequestDelete }) {
   const seasons = [...new Set(items.map((d) => d.season).filter((s) => s != null))].sort((a, b) => a - b);
 
   return (
@@ -20,16 +20,22 @@ export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay }) 
                 return (
                   <div
                     key={ep.id}
-                    className={`group cursor-pointer ${isActive ? 'ring-2 ring-accent rounded-card' : ''}`}
+                    className={`group cursor-pointer relative ${isActive ? 'ring-2 ring-accent rounded-card' : ''}`}
                     onClick={() => onPlay(ep)}
                   >
                     <div className="relative aspect-video bg-surface rounded-card overflow-hidden mb-2xs">
                       <div className="w-full h-full flex items-center justify-center">
                         <Play className="w-6 h-6 text-text-muted" />
                       </div>
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-accent/90 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                        <div className="w-8 h-8 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
                           <Play className="w-4 h-4 text-background ml-0.5" />
+                        </div>
+                        <div
+                          className="w-8 h-8 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
+                          onClick={(e) => { e.stopPropagation(); onRequestDelete?.(ep.id); }}
+                        >
+                          <Trash2 className="w-4 h-4 text-background" />
                         </div>
                       </div>
                     </div>

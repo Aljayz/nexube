@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Play, Film, Tv } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Film, Tv, Trash2 } from 'lucide-react';
 import LocalPlayer from './LocalPlayer';
 import OfflineEpisodeGrid from './OfflineEpisodeGrid';
 
-export default function OfflineDetailView({ title, type, posterPath, tmdbId, items, onBack }) {
+export default function OfflineDetailView({ title, type, posterPath, tmdbId, items, onBack, onRequestDelete, onRequestDeleteAll }) {
   const [currentEpisode, setCurrentEpisode] = useState(null);
   const [posterError, setPosterError] = useState(false);
   const [platform, setPlatform] = useState(null);
@@ -104,14 +104,32 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
                   </span>
                 )}
               </div>
-              {singleFile && (
+              {isTv && episodes.length > 1 && (
                 <button
-                  onClick={() => handlePlay(episodes[0])}
-                  className="mt-md flex items-center gap-sm px-lg py-sm bg-accent hover:bg-accent-hover text-background font-semibold rounded-button transition-colors text-sm"
+                  onClick={() => onRequestDeleteAll?.(episodes.map((e) => e.id))}
+                  className="mt-md flex items-center gap-sm px-lg py-sm bg-danger hover:bg-danger/80 text-background font-semibold rounded-button transition-colors text-sm"
                 >
-                  <Play className="w-4 h-4" />
-                  Play
+                  <Trash2 className="w-4 h-4" />
+                  Delete All
                 </button>
+              )}
+              {singleFile && (
+                <div className="mt-md flex items-center gap-sm">
+                  <button
+                    onClick={() => handlePlay(episodes[0])}
+                    className="flex items-center gap-sm px-lg py-sm bg-accent hover:bg-accent-hover text-background font-semibold rounded-button transition-colors text-sm"
+                  >
+                    <Play className="w-4 h-4" />
+                    Play
+                  </button>
+                  <button
+                    onClick={() => onRequestDelete?.(episodes[0].id)}
+                    className="flex items-center gap-sm px-lg py-sm bg-danger hover:bg-danger/80 text-background font-semibold rounded-button transition-colors text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -123,6 +141,7 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
               items={episodes}
               currentEpisodeId={currentEpisode?.id}
               onPlay={handlePlay}
+              onRequestDelete={onRequestDelete}
             />
           )}
         </div>

@@ -15,13 +15,14 @@ function formatBytes(bytes) {
 
 function DownloadsPage({ activeProfile }) {
   const profileId = activeProfile?.id || 'master-id';
-  const { downloads, setDownloads, loading, error, startDownload, cancelDownload, pauseDownload, resumeDownload, deleteDownload, playDownload, refreshDownloads, stopAllDownloads } = useDownloads(profileId);
+  const { downloads, setDownloads, loading, error, startDownload, cancelDownload, pauseDownload, resumeDownload, deleteDownload, playDownload, refreshDownloads, stopAllDownloads, batchProgress, startBatchDownload, batchStopDelete, batchPause, batchResume, batchStop } = useDownloads(profileId);
   const [retryCount, setRetryCount] = useState(0);
   const [playingDownload, setPlayingDownload] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [offlineDetail, setOfflineDetail] = useState(null);
   const [logModal, setLogModal] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const handleViewLog = useCallback(async (logPath) => {
     if (!logPath) return;
@@ -35,6 +36,16 @@ function DownloadsPage({ activeProfile }) {
     refreshDownloads();
   }, [retryCount, profileId]);
 
+  useEffect(() => {
+    if (!offlineDetail?.media_id) return;
+    const updatedItems = downloads.filter((d) => d.status === 'completed' && d.media_id === offlineDetail.media_id);
+    if (updatedItems.length === 0) {
+      setOfflineDetail(null);
+    } else if (updatedItems.length !== offlineDetail.items.length) {
+      setOfflineDetail((prev) => prev ? { ...prev, items: updatedItems } : prev);
+    }
+  }, [downloads]);
+
   const handlePlay = async (download) => {
     const platform = await window.electron?.getPlatform?.();
     if (platform === 'win32') {
@@ -47,8 +58,28 @@ function DownloadsPage({ activeProfile }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    await deleteDownload(id);
+  const handleDelete = (id) => {
+    setConfirmDelete({ id });
+  };
+
+  const handleDeleteAll = (ids) => {
+    setConfirmDelete({ ids });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    if (confirmDelete.ids) {
+      for (const id of confirmDelete.ids) {
+        await deleteDownload(id);
+      }
+    } else {
+      await deleteDownload(confirmDelete.id);
+    }
+    setConfirmDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDelete(null);
   };
 
   const handleOpenFolder = async (download) => {
@@ -107,12 +138,35 @@ function DownloadsPage({ activeProfile }) {
 
 
 
+  const queuedDownloads = downloads.filter((d) => d.status === 'queued');
   const activeDownloads = downloads.filter((d) => d.status === 'downloading');
   const pausedDownloads = downloads.filter((d) => d.status === 'paused');
   const completedDownloads = downloads.filter((d) => d.status === 'completed');
-  const failedDownloads = downloads.filter((d) => ['failed', 'error', 'cancelled', 'stopped', 'killed'].includes(d.status));
+  const batchCancelled = downloads.filter((d) => d.batch_id && ['cancelled', 'stopped', 'killed'].includes(d.status));
+  const batchCancelledIds = new Set(batchCancelled.map((d) => d.id));
+  const failedDownloads = downloads.filter((d) => ['failed', 'error', 'cancelled', 'stopped', 'killed'].includes(d.status) && !batchCancelledIds.has(d.id));
 
-  const hasAnyContent = activeDownloads.length > 0 || pausedDownloads.length > 0 || completedDownloads.length > 0 || failedDownloads.length > 0;
+  const cancelledGroups = useMemo(() => {
+    const groups = {};
+    for (const d of batchCancelled) {
+      const key = d.batch_id;
+      if (!groups[key]) groups[key] = { batchId: key, items: [], title: d.batch_title || `${d.title} Batch` };
+      groups[key].items.push(d);
+    }
+    return Object.values(groups);
+  }, [batchCancelled]);
+
+  const hasAnyContent = queuedDownloads.length > 0 || activeDownloads.length > 0 || pausedDownloads.length > 0 || completedDownloads.length > 0 || failedDownloads.length > 0 || cancelledGroups.length > 0;
+
+  const queuedGroups = useMemo(() => {
+    const groups = {};
+    for (const d of queuedDownloads) {
+      const key = d.batch_id || '_nogroup';
+      if (!groups[key]) groups[key] = { batchId: key, items: [], title: d.title };
+      groups[key].items.push(d);
+    }
+    return Object.values(groups);
+  }, [queuedDownloads]);
 
   const { movieCards, tvCards } = useMemo(() => {
     const singleMovies = completedDownloads.filter((d) => d.type === 'movie' && d.season == null && d.episode == null);
@@ -147,6 +201,8 @@ function DownloadsPage({ activeProfile }) {
             tmdbId={offlineDetail.tmdb_id}
             items={offlineDetail.items}
             onBack={() => setOfflineDetail(null)}
+            onRequestDelete={handleDelete}
+            onRequestDeleteAll={handleDeleteAll}
           />
         </div>
       ) : loading ? (
@@ -229,6 +285,126 @@ function DownloadsPage({ activeProfile }) {
         </div>
       ) : (
         <div className="space-y-xl">
+          {batchProgress && (
+            <div className="mb-lg p-md bg-surface rounded-card border border-border">
+              <div className="flex items-center justify-between mb-sm">
+                <span className="text-sm text-text-muted flex items-center gap-sm">
+                  {batchProgress.status === 'completed' || batchProgress.status === 'stopped' ? (
+                    <CheckCircle className="w-4 h-4 text-success" />
+                  ) : batchProgress.status === 'paused' ? (
+                    <PauseCircle className="w-4 h-4 text-accent" />
+                  ) : (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
+                  {batchProgress.title || 'Download Queue'}
+                </span>
+                <div className="flex items-center gap-sm">
+                  <span className="text-sm text-accent">
+                    {batchProgress.status === 'completed'
+                      ? `${batchProgress.completed || 0} done`
+                      : batchProgress.status === 'stopped'
+                        ? 'Stopped'
+                        : `${batchProgress.current || 0} / ${batchProgress.total || 0}`}
+                  </span>
+                  {(batchProgress.status === 'queuing' || batchProgress.status === 'downloading') && (
+                    <>
+                      <button
+                        onClick={() => batchPause(batchProgress.batchId)}
+                        className="p-sm text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
+                        title="Pause Batch"
+                      >
+                        <PauseCircle className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => batchStop(batchProgress.batchId)}
+                        className="text-xs px-sm py-2xs text-danger hover:bg-danger/10 rounded-md transition-colors"
+                        title="Stop All — cancels remaining items in this batch"
+                      >
+                        <StopCircle className="w-3.5 h-3.5 inline-block mr-1" />
+                        Stop All
+                      </button>
+                    </>
+                  )}
+                  {batchProgress.status === 'paused' && (
+                    <>
+                      <button
+                        onClick={() => batchResume(batchProgress.batchId)}
+                        className="p-sm text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
+                        title="Resume Batch"
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => batchStop(batchProgress.batchId)}
+                        className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                        title="Stop Batch"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  {batchProgress.status !== 'deleted' && (
+                    <button
+                      onClick={() => batchStopDelete(batchProgress.batchId)}
+                      className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                      title="Delete Batch"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="h-2 bg-background rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-all duration-300"
+                  style={{ width: `${batchProgress.total > 0 ? Math.min((batchProgress.current / batchProgress.total) * 100, 100) : 0}%` }}
+                />
+              </div>
+              {batchProgress.status === 'completed' && (
+                <p className="text-xs text-text-muted mt-sm">
+                  {batchProgress.completed} completed
+                  {batchProgress.failed > 0 ? `, ${batchProgress.failed} failed` : ''}
+                  {batchProgress.skipped > 0 ? `, ${batchProgress.skipped} skipped` : ''}
+                </p>
+              )}
+            </div>
+          )}
+
+          {queuedGroups.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+                In Queue
+              </h2>
+              <div className="space-y-md">
+                {queuedGroups.map((group) => (
+                  <div key={group.batchId} className="p-md bg-surface rounded-card border border-border">
+                    <div className="flex items-center justify-between gap-sm mb-sm">
+                      <span className="text-sm font-medium text-text-primary truncate">{group.title}</span>
+                      <div className="flex items-center gap-sm flex-shrink-0">
+                        <span className="text-xs text-text-muted">{group.items.length} waiting</span>
+                        <button
+                          onClick={() => batchStopDelete(group.batchId)}
+                          className="p-xs text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                          title="Delete Batch"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {group.items.map((d) => (
+                        <span key={d.id} className="text-xs px-sm py-2xs bg-background rounded text-text-muted">
+                          {d.type === 'tv' ? `S${d.season}E${d.episode}` : d.title}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {activeDownloads.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
@@ -362,6 +538,52 @@ function DownloadsPage({ activeProfile }) {
             </div>
           )}
 
+          {cancelledGroups.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
+                <StopCircle className="w-3.5 h-3.5 text-text-muted" />
+                Stopped Batches
+              </h2>
+              <div className="space-y-md">
+                {cancelledGroups.map((group) => (
+                  <div key={group.batchId} className="p-md bg-surface rounded-card border border-border">
+                    <div className="flex items-center justify-between mb-sm">
+                      <span className="text-sm font-medium text-text-primary truncate">{group.title}</span>
+                      <div className="flex items-center gap-sm flex-shrink-0">
+                        <span className="text-xs text-text-muted">{group.items.length} items</span>
+                        <button
+                          onClick={() => batchStopDelete(group.batchId)}
+                          className="p-xs text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                          title="Delete All"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {group.items.map((d) => (
+                        <div key={d.id} className="flex items-center gap-1 px-sm py-2xs bg-background rounded">
+                          <span className="text-xs text-text-muted">
+                            {d.type === 'tv' ? `S${d.season}E${d.episode}` : d.title}
+                          </span>
+                          {d.id && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }}
+                              className="p-2xs text-text-muted hover:text-danger rounded transition-colors"
+                              title="Delete this item"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {failedDownloads.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
@@ -452,13 +674,19 @@ function DownloadsPage({ activeProfile }) {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-full h-full flex items-center justify-center group-hover:opacity-0 transition-opacity">
                           <Film className="w-8 h-8 text-text-muted" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
                           <Play className="w-5 h-5 text-background ml-0.5" />
+                        </div>
+                        <div
+                          className="w-10 h-10 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(card.items[0].id); }}
+                        >
+                          <Trash2 className="w-5 h-5 text-background" />
                         </div>
                       </div>
                     </div>
@@ -491,7 +719,7 @@ function DownloadsPage({ activeProfile }) {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-full h-full flex items-center justify-center group-hover:opacity-0 transition-opacity">
                           <Tv className="w-8 h-8 text-text-muted" />
                         </div>
                       )}
@@ -542,6 +770,36 @@ function DownloadsPage({ activeProfile }) {
             <pre className="flex-1 overflow-auto bg-black/40 rounded-lg p-md text-xs font-mono text-text-muted leading-relaxed whitespace-pre-wrap">
               {logModal.content || '(empty)'}
             </pre>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60" onClick={handleCancelDelete}>
+          <div
+            className="bg-surface rounded-xl p-xl max-w-md w-full mx-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-text-primary mb-sm">Confirm Delete</h3>
+            <p className="text-sm text-text-muted mb-lg">
+              {confirmDelete.ids
+                ? `Are you sure you want to delete all ${confirmDelete.ids.length} downloads?`
+                : 'Are you sure you want to delete this download?'}
+            </p>
+            <div className="flex items-center justify-end gap-sm">
+              <button
+                onClick={handleCancelDelete}
+                className="px-lg py-sm rounded-button border border-border text-text-primary hover:bg-surface/80 transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-lg py-sm rounded-button bg-danger hover:bg-danger/80 text-background font-semibold transition-colors text-sm"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

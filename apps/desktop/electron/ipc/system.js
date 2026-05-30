@@ -35,7 +35,7 @@ function formatBytes(bytes) {
 function register() {
   ipcMain.handle('system:getMemoryInfo', async () => {
     const mem = process.memoryUsage();
-    const dbPath = path.join(process.cwd(), 'nexube.db');
+    const dbPath = path.join(app.getPath('userData'), 'nexube.db');
     const dbSize = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     const dbWalSize = fs.existsSync(dbPath + '-wal') ? fs.statSync(dbPath + '-wal').size : 0;
     const dbShmSize = fs.existsSync(dbPath + '-shm') ? fs.statSync(dbPath + '-shm').size : 0;
@@ -70,7 +70,7 @@ function register() {
     try {
       closeDatabase();
 
-      const dbPath = path.join(process.cwd(), 'nexube.db');
+      const dbPath = path.join(app.getPath('userData'), 'nexube.db');
       const dbWalPath = dbPath + '-wal';
       const dbShmPath = dbPath + '-shm';
 
@@ -82,7 +82,7 @@ function register() {
       const { clearCache: clearStorageCache } = require('./storage');
       clearStorageCache();
 
-      getDatabase();
+      getDatabase(path.join(app.getPath('userData'), 'nexube.db'));
 
       return { success: true, message: 'All data has been reset. The app will restart.' };
     } catch (err) {

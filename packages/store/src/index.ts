@@ -34,6 +34,10 @@ export {
   getDownload,
   deleteDownload,
   getActiveDownloads,
+  addBatch,
+  updateBatch,
+  getBatch,
+  getDownloadsByBatch,
 } from './database';
 
 export {

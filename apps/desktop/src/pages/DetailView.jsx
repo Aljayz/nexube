@@ -304,7 +304,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
         />
       )}
       {showSubtitles && <SubtitleModal tmdbId={media.tmdbId} type={media.type} onClose={() => setShowSubtitles(false)} />}
-      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} isAnime={details?.isAnime} onClose={() => setShowDownload(false)} onProfileUpdated={onProfileUpdated} />}
+      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} isAnime={details?.isAnime} onClose={() => setShowDownload(false)} onProfileUpdated={onProfileUpdated} relatedMovies={relatedMovies} />}
     </div>
   );
 }
