@@ -230,6 +230,9 @@ function migrateDatabase(): void {
       db!.exec('ALTER TABLE downloads ADD COLUMN episode_name TEXT');
     } catch {}
     try {
+      db!.exec('ALTER TABLE downloads ADD COLUMN collection_id INTEGER');
+    } catch {}
+    try {
       db!.exec('ALTER TABLE profiles ADD COLUMN avatar TEXT');
     } catch {}
     try {
@@ -660,10 +663,11 @@ export function addDownload(download: {
   episode?: number;
   episodeName?: string;
   sourceId?: string;
+  collectionId?: number;
 }): void {
   db!.prepare(
-    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'downloading')`
+    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, collection_id, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'downloading')`
   ).run(
     download.id,
     download.profileId,
@@ -676,7 +680,8 @@ export function addDownload(download: {
     download.season || null,
     download.episode || null,
     download.episodeName || null,
-    download.sourceId || null
+    download.sourceId || null,
+    download.collectionId || null
   );
 }
 

@@ -339,6 +339,19 @@ function register(getMainWindowFn) {
 
       fs.mkdirSync(fileDir, { recursive: true });
 
+      let collectionId = null;
+      if (type === 'movie' && tmdbId) {
+        try {
+          const { tmdbFetch } = require('./tmdb');
+          const details = await tmdbFetch(`/movie/${tmdbId}`);
+          if (details?.belongs_to_collection?.id) {
+            collectionId = details.belongs_to_collection.id;
+          }
+        } catch (e) {
+          console.warn(`[desk-downloads] Failed to fetch collection for movie ${tmdbId}:`, e.message);
+        }
+      }
+
       addDownload({
         id: downloadId,
         profileId,
@@ -352,6 +365,7 @@ function register(getMainWindowFn) {
         episode,
         episodeName: episodeTitle,
         sourceId: source.id,
+        collectionId,
       });
 
       const result = startDownload({
@@ -522,11 +536,18 @@ function register(getMainWindowFn) {
           `SELECT * FROM downloads WHERE media_id = ? AND season = ? AND status = 'completed' AND file_path IS NOT NULL ORDER BY episode ASC`
         ).all(download.media_id, download.season);
         playlist = rows.filter((r) => fs.existsSync(r.file_path));
+      } else if (download.collection_id) {
+        const db = require('@nexube/store').getDatabase();
+        const rows = db.prepare(
+          `SELECT * FROM downloads WHERE collection_id = ? AND status = 'completed' AND file_path IS NOT NULL ORDER BY media_id ASC`
+        ).all(download.collection_id);
+        playlist = rows.filter((r) => fs.existsSync(r.file_path));
       } else {
         playlist = [download];
       }
 
-      const selectedIndex = isTv ? playlist.findIndex((r) => r.id === downloadId) : 0;
+      const hasPlaylist = isTv || download.collection_id;
+      const selectedIndex = hasPlaylist ? playlist.findIndex((r) => r.id === downloadId) : 0;
       if (selectedIndex === -1) return { success: false, error: 'Episode not found in playlist' };
 
       const { spawn } = require('child_process');
@@ -535,7 +556,7 @@ function register(getMainWindowFn) {
 
       if (vlcPath) {
         const vlcArgs = ['--loop'];
-        if (isTv && selectedIndex > 0) {
+        if (hasPlaylist && selectedIndex > 0) {
           vlcArgs.push(`--playlist-start=${selectedIndex}`);
         }
         for (const item of playlist) {
