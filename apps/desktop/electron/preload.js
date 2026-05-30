@@ -114,6 +114,7 @@ contextBridge.exposeInMainWorld('electron', {
     list: (profileId) => ipcRenderer.invoke('desk-download:list', profileId),
     getActive: (profileId) => ipcRenderer.invoke('desk-download:getActive', profileId),
     play: (id) => ipcRenderer.invoke('desk-download:play', id),
+    playExternal: (id) => ipcRenderer.invoke('desk-download:play-external', id),
     checkBundled: () => ipcRenderer.invoke('desk-download:check-bundled'),
     checkFolder: (folderPath) => ipcRenderer.invoke('desk-download:check-folder', folderPath),
     pickFolder: (defaultPath) => ipcRenderer.invoke('desk-download:pick-folder', { defaultPath }),

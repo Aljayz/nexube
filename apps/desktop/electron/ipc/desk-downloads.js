@@ -503,6 +503,94 @@ function register(getMainWindowFn) {
     }
   });
 
+  ipcMain.handle('desk-download:play-external', async (_, downloadId) => {
+    try {
+      const download = getDownload(downloadId);
+      if (!download || !download.file_path) {
+        return { success: false, error: 'File not found' };
+      }
+      if (!fs.existsSync(download.file_path)) {
+        return { success: false, error: 'File missing' };
+      }
+
+      const isTv = download.season != null;
+      let playlist = [];
+
+      if (isTv) {
+        const db = require('@nexube/store').getDatabase();
+        const rows = db.prepare(
+          `SELECT * FROM downloads WHERE media_id = ? AND season = ? AND status = 'completed' AND file_path IS NOT NULL ORDER BY episode ASC`
+        ).all(download.media_id, download.season);
+        playlist = rows.filter((r) => fs.existsSync(r.file_path));
+      } else {
+        playlist = [download];
+      }
+
+      const selectedIndex = isTv ? playlist.findIndex((r) => r.id === downloadId) : 0;
+      if (selectedIndex === -1) return { success: false, error: 'Episode not found in playlist' };
+
+      const tempDir = app.getPath('temp');
+      const playlistPath = path.join(tempDir, `nexube-${downloadId}.m3u`);
+
+      const lines = ['#EXTM3U'];
+      for (const item of playlist) {
+        const label = isTv
+          ? `S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}${item.episode_name ? ` - ${item.episode_name}` : ''}`
+          : path.basename(item.file_path);
+        lines.push(`#EXTINF:0,${label}`);
+        lines.push(item.file_path);
+      }
+      fs.writeFileSync(playlistPath, lines.join('\n'), 'utf8');
+
+      const { spawn } = require('child_process');
+      const vlcPath = findVlcPath();
+      let player = 'vlc';
+
+      if (vlcPath) {
+        const args = [playlistPath];
+        if (isTv && selectedIndex > 0) {
+          args.unshift(`--playlist-start=${selectedIndex}`);
+        }
+        args.unshift(vlcPath);
+        const child = spawn(vlcPath, [`--playlist-start=${selectedIndex}`, playlistPath], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
+      } else {
+        player = 'wmp';
+        const child = spawn('wmplayer.exe', ['/play', playlistPath], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
+      }
+
+      return { success: true, player, episodes: playlist.length };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  function findVlcPath() {
+    const commonPaths = [
+      'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe',
+      'C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe',
+      path.join(process.env.LOCALAPPDATA || '', 'Programs\\VLC\\vlc.exe'),
+      path.join(process.env.PROGRAMFILES || '', 'VideoLAN\\VLC\\vlc.exe'),
+      path.join(process.env['PROGRAMFILES(X86)'] || '', 'VideoLAN\\VLC\\vlc.exe'),
+    ];
+    for (const p of commonPaths) {
+      if (fs.existsSync(p)) return p;
+    }
+    try {
+      const { execSync } = require('child_process');
+      const result = execSync('where vlc 2>nul', { encoding: 'utf8', timeout: 2000 }).trim();
+      if (result) return result.split('\n')[0].trim();
+    } catch {}
+    return null;
+  }
+
   ipcMain.handle('desk-download:kill-all', async () => {
     try {
       const db = require('@nexube/store').getDatabase();
