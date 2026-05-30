@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('electron', {
     defaultPath: () => ipcRenderer.invoke('desk-download:default-path'),
     scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
     showInFolder: (filePath) => ipcRenderer.invoke('desk-download:show-in-folder', filePath),
+    readLog: (logPath) => ipcRenderer.invoke('desk-download:read-log', logPath),
     onProgress: (callback) => {
       const handler = (_, data) => callback(data);
       ipcRenderer.on('desk-download:progress', handler);

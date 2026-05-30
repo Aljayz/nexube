@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Maximize, Minimize, X } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Maximize, Minimize, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -20,6 +20,8 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState(null);
+  const [errorDetail, setErrorDetail] = useState(null);
+  const [showErrorDetail, setShowErrorDetail] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -29,8 +31,16 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
     const onDurationChange = () => setDuration(video.duration);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
-    const onError = () => setError('Failed to load video');
+    const onError = () => {
+      const ve = video.error;
+      const code = ve ? ve.code : 0;
+      const codes = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
+      const msg = codes[code] || `Unknown (${code})`;
+      setError('Failed to load video');
+      setErrorDetail({ code: msg, message: ve?.message || '', filePath });
+    };
     const onEnded = () => { setPlaying(false); onVideoEnded?.(); };
+    const onCanPlay = () => { setError(null); setErrorDetail(null); };
 
     video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('durationchange', onDurationChange);
@@ -38,6 +48,7 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
     video.addEventListener('pause', onPause);
     video.addEventListener('error', onError);
     video.addEventListener('ended', onEnded);
+    video.addEventListener('canplay', onCanPlay);
 
     return () => {
       video.removeEventListener('timeupdate', onTimeUpdate);
@@ -46,6 +57,7 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
       video.removeEventListener('pause', onPause);
       video.removeEventListener('error', onError);
       video.removeEventListener('ended', onEnded);
+      video.removeEventListener('canplay', onCanPlay);
     };
   }, [filePath]);
 
@@ -127,8 +139,31 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
           />
 
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-md">
               <p className="text-white text-lg">{error}</p>
+              <button
+                onClick={() => setShowErrorDetail(!showErrorDetail)}
+                className="flex items-center gap-sm text-sm text-white/60 hover:text-white transition-colors"
+              >
+                {showErrorDetail ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Show Details
+              </button>
+              {showErrorDetail && errorDetail && (
+                <div className="bg-black/80 rounded-lg p-md max-w-lg w-full mx-xl text-xs font-mono text-white/80 space-y-sm">
+                  <div><span className="text-white/50">Code: </span>{errorDetail.code}</div>
+                  {errorDetail.message && (
+                    <div><span className="text-white/50">Message: </span>{errorDetail.message}</div>
+                  )}
+                  <div className="truncate"><span className="text-white/50">URL: </span>{errorDetail.filePath}</div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(JSON.stringify(errorDetail, null, 2))}
+                    className="flex items-center gap-sm text-accent hover:text-accent-hover transition-colors text-xs"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Copy Error Details
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

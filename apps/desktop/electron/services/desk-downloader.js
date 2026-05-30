@@ -210,7 +210,7 @@ function startDownload({
       } catch {}
     }
 
-    const STUCK_TIMEOUT_MS = 30000;
+    const STUCK_TIMEOUT_MS = 15000;
     const STUCK_CHECK_INTERVAL_MS = 5000;
     const stuckTimer = setInterval(() => {
       if (entry.status !== 'downloading') {
@@ -219,7 +219,14 @@ function startDownload({
       }
       const elapsed = Date.now() - entry._lastProgressTime;
       if (elapsed > STUCK_TIMEOUT_MS && Date.now() - entry.startedAt > STUCK_TIMEOUT_MS) {
-        const msg = `Download stuck \u2014 no progress for ${Math.round(elapsed / 1000)}s`;
+        let msg = `Download stuck \u2014 no progress for ${Math.round(elapsed / 1000)}s`;
+        try {
+          const logContent = fs.readFileSync(logPath, 'utf8').trim();
+          const errorLines = logContent.split('\n').filter(l => l.startsWith('[stderr]'));
+          if (errorLines.length > 0) {
+            msg += ': ' + errorLines.slice(0, 3).join('; ');
+          }
+        } catch {}
         entry.status = 'error';
         entry.completedAt = Date.now();
         entry.lastMessage = msg;

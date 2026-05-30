@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv, FileText } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import { useDownloads } from '../hooks/useDownloads';
 import LocalPlayer from '../components/LocalPlayer';
@@ -21,6 +21,15 @@ function DownloadsPage({ activeProfile }) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [offlineDetail, setOfflineDetail] = useState(null);
+  const [logModal, setLogModal] = useState(null);
+
+  const handleViewLog = useCallback(async (logPath) => {
+    if (!logPath) return;
+    const result = await window.electron?.deskDownloads?.readLog(logPath);
+    if (result?.success) {
+      setLogModal({ path: logPath, content: result.content });
+    }
+  }, []);
 
   useEffect(() => {
     refreshDownloads();
@@ -387,6 +396,15 @@ function DownloadsPage({ activeProfile }) {
                     </div>
 
                     <div className="flex items-center gap-xs">
+                      {download.status === 'error' && download.logPath && (
+                        <button
+                          onClick={() => handleViewLog(download.logPath)}
+                          className="p-sm text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
+                          title="View Log"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleRetry(download)}
                         className="p-sm text-text-muted hover:text-success hover:bg-success/10 rounded-md transition-colors"
@@ -502,6 +520,25 @@ function DownloadsPage({ activeProfile }) {
           title={playingDownload.title}
           onClose={() => setPlayingDownload(null)}
         />
+      )}
+
+      {logModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setLogModal(null)}>
+          <div
+            className="bg-surface rounded-xl p-xl max-w-2xl w-full mx-xl max-h-[80vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-md">
+              <h3 className="text-sm font-semibold text-text-primary">Download Log</h3>
+              <button onClick={() => setLogModal(null)} className="text-text-muted hover:text-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto bg-black/40 rounded-lg p-md text-xs font-mono text-text-muted leading-relaxed whitespace-pre-wrap">
+              {logModal.content || '(empty)'}
+            </pre>
+          </div>
+        </div>
       )}
     </div>
       )}

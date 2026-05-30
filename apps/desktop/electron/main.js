@@ -1,5 +1,6 @@
 const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
@@ -284,6 +285,7 @@ app.whenReady().then(() => {
       }
       return net.fetch(pathToFileURL(filePath).toString());
     } catch (err) {
+      console.error(`[local-media] Failed to serve ${request.url}:`, err);
       return new Response(String(err), { status: 404 });
     }
   });
@@ -299,6 +301,15 @@ app.whenReady().then(() => {
 
   ipcMain.handle('shell:openExternal', async (_, url) => {
     return shell.openExternal(url);
+  });
+
+  ipcMain.handle('desk-download:read-log', async (_, logPath) => {
+    try {
+      const content = fs.readFileSync(logPath, 'utf8');
+      return { success: true, content };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   createWindow();
