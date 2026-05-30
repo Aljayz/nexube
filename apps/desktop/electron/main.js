@@ -1,7 +1,6 @@
 const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const { Readable } = require('stream');
+const { pathToFileURL } = require('url');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
 
@@ -283,44 +282,7 @@ app.whenReady().then(() => {
       if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
         filePath = filePath.slice(1);
       }
-      const stat = fs.statSync(filePath);
-      const ext = path.extname(filePath).toLowerCase();
-      const mimeTypes = {
-        '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
-        '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.wmv': 'video/x-ms-wmv',
-        '.flv': 'video/x-flv', '.m4v': 'video/x-m4v', '.ts': 'video/mp2t',
-        '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.flac': 'audio/flac',
-        '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.aac': 'audio/aac',
-      };
-      const contentType = mimeTypes[ext] || 'video/mp4';
-      const fileSize = stat.size;
-      const rangeHeader = request.headers.get('Range');
-
-      function streamFile(start, end) {
-        return Readable.toWeb(fs.createReadStream(filePath, { start, end }));
-      }
-
-      if (rangeHeader) {
-        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-        if (match) {
-          const start = parseInt(match[1], 10);
-          const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
-          return new Response(streamFile(start, end), {
-            status: 206,
-            headers: {
-              'Content-Type': contentType,
-              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-              'Content-Length': String(end - start + 1),
-              'Accept-Ranges': 'bytes',
-            },
-          });
-        }
-      }
-
-      return new Response(streamFile(), {
-        status: 200,
-        headers: { 'Content-Type': contentType, 'Content-Length': String(fileSize), 'Accept-Ranges': 'bytes' },
-      });
+      return net.fetch(pathToFileURL(filePath).toString());
     } catch (err) {
       return new Response(String(err), { status: 404 });
     }
