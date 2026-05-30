@@ -497,7 +497,7 @@ function register(getMainWindowFn) {
       if (!fs.existsSync(download.file_path)) {
         return { success: false, error: 'File missing' };
       }
-      return { success: true, filePath: pathToFileURL(download.file_path).href };
+      return { success: true, filePath: `media://${download.file_path.replace(/\\/g, '/')}` };
     } catch (err) {
       return { success: false, error: err.message };
     }

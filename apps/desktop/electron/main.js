@@ -99,7 +99,7 @@ function createWindow() {
     show: false,
   });
 
-  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: local-media:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: local-media: media:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
   const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
@@ -240,6 +240,7 @@ app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,Insec
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'local-media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
+  { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
 app.whenReady().then(() => {
@@ -276,6 +277,17 @@ app.whenReady().then(() => {
       deleteDownload(row.id);
     }
   } catch {}
+
+  protocol.handle('media', (request) => {
+    try {
+      const filePath = decodeURIComponent(request.url.replace('media://', ''));
+      console.log(`[media] serving file: ${filePath}`);
+      return net.fetch(pathToFileURL(filePath).toString());
+    } catch (err) {
+      console.error(`[media] Failed to serve ${request.url}:`, err);
+      return new Response(String(err), { status: 500 });
+    }
+  });
 
   protocol.handle('local-media', async (request) => {
     try {
