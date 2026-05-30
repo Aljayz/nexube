@@ -300,7 +300,7 @@ app.whenReady().then(() => {
         if (match) {
           const start = parseInt(match[1], 10);
           const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
-          return new Response(Readable.toWeb(fs.createReadStream(filePath, { start, end: end + 1 })), {
+          return new Response(Readable.toWeb(fs.createReadStream(filePath, { start, end })), {
             status: 206,
             headers: {
               'Content-Type': contentType,
