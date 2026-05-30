@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, Film, Tv, Trash2 } from 'lucide-react';
 import LocalPlayer from './LocalPlayer';
 import OfflineEpisodeGrid from './OfflineEpisodeGrid';
@@ -6,13 +6,6 @@ import OfflineEpisodeGrid from './OfflineEpisodeGrid';
 export default function OfflineDetailView({ title, type, posterPath, tmdbId, items, onBack, onRequestDelete, onRequestDeleteAll }) {
   const [currentEpisode, setCurrentEpisode] = useState(null);
   const [posterError, setPosterError] = useState(false);
-  const [platform, setPlatform] = useState(null);
-
-  useEffect(() => {
-    window.electron?.getPlatform?.().then(setPlatform);
-  }, []);
-
-  const isWin = platform === 'win32';
 
   const episodes = useMemo(
     () => items
@@ -31,16 +24,12 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
 
   const handlePlay = useCallback(async (ep) => {
     try {
-      if (isWin) {
-        await window.electron?.deskDownloads?.playExternal(ep.id);
-      } else {
-        const result = await window.electron?.deskDownloads?.play(ep.id);
-        if (result?.success) {
-          setCurrentEpisode({ ...ep, filePath: result.filePath });
-        }
+      const result = await window.electron?.deskDownloads?.play(ep.id);
+      if (result?.success) {
+        setCurrentEpisode({ ...ep, filePath: result.filePath });
       }
     } catch {}
-  }, [isWin]);
+  }, []);
 
   const handlePrev = useCallback(() => {
     if (hasPrev) handlePlay(episodes[currentIndex - 1]);
@@ -147,7 +136,7 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
         </div>
       </div>
 
-      {currentEpisode && !isWin && (
+      {currentEpisode && (
         <div className="fixed inset-0 z-50">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
             {hasPrev && (

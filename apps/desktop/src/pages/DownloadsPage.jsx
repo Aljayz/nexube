@@ -47,14 +47,9 @@ function DownloadsPage({ activeProfile }) {
   }, [downloads]);
 
   const handlePlay = async (download) => {
-    const platform = await window.electron?.getPlatform?.();
-    if (platform === 'win32') {
-      await window.electron?.deskDownloads?.playExternal(download.id);
-    } else {
-      const result = await playDownload(download.id);
-      if (result?.success && result.filePath) {
-        setPlayingDownload({ filePath: result.filePath, title: download.title });
-      }
+    const result = await playDownload(download.id);
+    if (result?.success && result.filePath) {
+      setPlayingDownload({ filePath: result.filePath, title: download.title });
     }
   };
 
