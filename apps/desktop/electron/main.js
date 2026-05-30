@@ -278,7 +278,10 @@ app.whenReady().then(() => {
   protocol.handle('local-media', (request) => {
     try {
       const parsed = new URL(request.url);
-      const filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
+      let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
+      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
+        filePath = filePath.slice(1);
+      }
       const stat = fs.statSync(filePath);
       const ext = path.extname(filePath).toLowerCase();
       const mimeTypes = {

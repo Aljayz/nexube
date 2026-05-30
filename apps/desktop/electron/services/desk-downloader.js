@@ -297,7 +297,14 @@ function startDownload({
         entry.completedAt = Date.now();
         if (entry.status === 'downloading') {
           entry.status = 'error';
-          entry.lastMessage = entry.lastMessage || `Process exited with code ${code}`;
+          entry.lastMessage = `Process exited with code ${code}`;
+          try {
+            const logContent = fs.readFileSync(logPath, 'utf8').trim();
+            const errorLines = logContent.split('\n').filter(l => l.startsWith('[stderr]'));
+            if (errorLines.length > 0) {
+              entry.lastMessage += ': ' + errorLines.slice(0, 3).join('; ');
+            }
+          } catch {}
         }
       }
 
