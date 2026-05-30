@@ -538,7 +538,7 @@ function register(getMainWindowFn) {
           ? `S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}${item.episode_name ? ` - ${item.episode_name}` : ''}`
           : path.basename(item.file_path);
         lines.push(`#EXTINF:0,${label}`);
-        lines.push(`"${item.file_path}"`);
+        lines.push(item.file_path);
       }
       fs.writeFileSync(playlistPath, lines.join('\n'), 'utf8');
 
