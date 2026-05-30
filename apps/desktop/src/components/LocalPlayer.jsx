@@ -134,6 +134,7 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
             className="w-full h-full"
             src={filePath}
             key={filePath}
+            controls
             onClick={togglePlay}
             onDoubleClick={toggleFullscreen}
           />

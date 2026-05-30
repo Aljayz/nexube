@@ -1,8 +1,8 @@
-const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Readable } = require('stream');
-const { pathToFileURL } = require('url');
+
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
 
@@ -278,7 +278,7 @@ app.whenReady().then(() => {
     }
   } catch {}
 
-  protocol.handle('media', (request) => {
+  protocol.handle('media', async (request) => {
     try {
       const parsed = new URL(request.url);
       let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
@@ -286,7 +286,43 @@ app.whenReady().then(() => {
         filePath = filePath.slice(1);
       }
       console.log(`[media] serving file: ${filePath}`);
-      return net.fetch(pathToFileURL(filePath).toString());
+      const stat = await fs.promises.stat(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+        '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.m4v': 'video/mp4',
+      };
+      const contentType = mimeTypes[ext] || 'video/mp4';
+      const fileSize = stat.size;
+      const rangeHeader = request.headers.get('Range');
+
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+          return new Response(Readable.toWeb(fs.createReadStream(filePath, { start, end })), {
+            status: 206,
+            headers: {
+              'Content-Type': contentType,
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Content-Length': String(end - start + 1),
+              'Accept-Ranges': 'bytes',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        }
+      }
+
+      return new Response(Readable.toWeb(fs.createReadStream(filePath)), {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(fileSize),
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     } catch (err) {
       console.error(`[media] Failed to serve ${request.url}:`, err);
       return new Response(String(err), { status: 500 });
