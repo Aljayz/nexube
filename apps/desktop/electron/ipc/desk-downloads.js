@@ -538,7 +538,7 @@ function register(getMainWindowFn) {
           ? `S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}${item.episode_name ? ` - ${item.episode_name}` : ''}`
           : path.basename(item.file_path);
         lines.push(`#EXTINF:0,${label}`);
-        lines.push(item.file_path);
+        lines.push(`"${item.file_path}"`);
       }
       fs.writeFileSync(playlistPath, lines.join('\n'), 'utf8');
 
@@ -547,23 +547,20 @@ function register(getMainWindowFn) {
       let player = 'vlc';
 
       if (vlcPath) {
-        const args = [playlistPath];
+        const vlcArgs = [];
         if (isTv && selectedIndex > 0) {
-          args.unshift(`--playlist-start=${selectedIndex}`);
+          vlcArgs.push(`--playlist-start=${selectedIndex}`);
         }
-        args.unshift(vlcPath);
-        const child = spawn(vlcPath, [`--playlist-start=${selectedIndex}`, playlistPath], {
+        vlcArgs.push(playlistPath);
+        const child = spawn(vlcPath, vlcArgs, {
+          cwd: path.dirname(vlcPath),
           detached: true,
           stdio: 'ignore',
         });
         child.unref();
       } else {
-        player = 'wmp';
-        const child = spawn('wmplayer.exe', ['/play', playlistPath], {
-          detached: true,
-          stdio: 'ignore',
-        });
-        child.unref();
+        player = 'default';
+        shell.openPath(playlistPath);
       }
 
       return { success: true, player, episodes: playlist.length };
