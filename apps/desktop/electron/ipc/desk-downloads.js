@@ -529,38 +529,26 @@ function register(getMainWindowFn) {
       const selectedIndex = isTv ? playlist.findIndex((r) => r.id === downloadId) : 0;
       if (selectedIndex === -1) return { success: false, error: 'Episode not found in playlist' };
 
-      const tempDir = app.getPath('temp');
-      const playlistPath = path.join(tempDir, `nexube-${downloadId}.m3u`);
-
-      const lines = ['#EXTM3U'];
-      for (const item of playlist) {
-        const label = isTv
-          ? `S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}${item.episode_name ? ` - ${item.episode_name}` : ''}`
-          : path.basename(item.file_path);
-        lines.push(`#EXTINF:0,${label}`);
-        lines.push(item.file_path);
-      }
-      fs.writeFileSync(playlistPath, lines.join('\n'), 'utf8');
-
       const { spawn } = require('child_process');
       const vlcPath = findVlcPath();
       let player = 'vlc';
 
       if (vlcPath) {
-        const vlcArgs = [];
+        const vlcArgs = ['--loop'];
         if (isTv && selectedIndex > 0) {
           vlcArgs.push(`--playlist-start=${selectedIndex}`);
         }
-        vlcArgs.push(playlistPath);
+        for (const item of playlist) {
+          vlcArgs.push(item.file_path);
+        }
         const child = spawn(vlcPath, vlcArgs, {
-          cwd: path.dirname(vlcPath),
           detached: true,
           stdio: 'ignore',
         });
         child.unref();
       } else {
         player = 'default';
-        shell.openPath(playlistPath);
+        shell.openPath(playlist[selectedIndex]?.file_path || download.file_path);
       }
 
       return { success: true, player, episodes: playlist.length };
