@@ -15,8 +15,82 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  build-downloader-windows:
+    name: Build Downloader (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python setuptools
+        run: pip install setuptools
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Install Python dependencies
+        run: pip install -r apps/desk-vid-dl/requirements.txt
+
+      - name: Build desk-vid-dl (Windows)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
+      - name: Verify downloader binary exists
+        shell: bash
+        run: |
+          if [ -f "apps/desktop/resources/desk-vid-dl/windows/desk-vid-dl/desk-vid-dl.exe" ]; then
+            echo "Windows downloader binary found"
+          else
+            echo "ERROR: Windows downloader binary not found!"
+            ls -la apps/desktop/resources/desk-vid-dl/windows/desk-vid-dl/ || true
+            exit 1
+          fi
+
+      - name: Upload downloader artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desk-vid-dl-windows
+          path: apps/desktop/resources/desk-vid-dl/windows/desk-vid-dl/
+          retention-days: 14
+
+  build-downloader-linux:
+    name: Build Downloader (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python setuptools
+        run: pip install setuptools
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Install Python dependencies
+        run: pip install -r apps/desk-vid-dl/requirements.txt
+
+      - name: Build desk-vid-dl (Linux)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
+      - name: Verify downloader binary exists
+        run: |
+          if [ -f "apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/desk-vid-dl" ]; then
+            echo "Linux downloader binary found"
+          else
+            echo "ERROR: Linux downloader binary not found!"
+            ls -la apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/ || true
+            exit 1
+          fi
+
+      - name: Upload downloader artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desk-vid-dl-linux
+          path: apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/
+          retention-days: 14
+
   build-windows:
     name: Build Windows (NSIS)
+    needs: build-downloader-windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,12 +113,22 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Download pre-built downloader
+        uses: actions/download-artifact@v4
+        with:
+          name: desk-vid-dl-windows
+          path: apps/desktop/resources/desk-vid-dl/windows/desk-vid-dl/
 
-      - name: Build desk-vid-dl (Windows)
-        working-directory: apps/desk-vid-dl
-        run: python build.py
+      - name: Verify downloaded binary
+        shell: bash
+        run: |
+          if compgen -G "apps/desktop/resources/desk-vid-dl/windows/desk-vid-dl/*.exe" > /dev/null; then
+            echo "Downloader binary ready"
+          else
+            echo "ERROR: No .exe found in downloaded artifact!"
+            find apps/desktop/resources/desk-vid-dl/ -type f
+            exit 1
+          fi
 
       - name: Set version
         shell: bash
@@ -68,6 +152,7 @@ jobs:
 
   build-linux:
     name: Build Linux (AppImage + deb)
+    needs: build-downloader-linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,12 +180,22 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Download pre-built downloader
+        uses: actions/download-artifact@v4
+        with:
+          name: desk-vid-dl-linux
+          path: apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/
 
-      - name: Build desk-vid-dl (Linux)
-        working-directory: apps/desk-vid-dl
-        run: python build.py
+      - name: Verify downloaded binary
+        run: |
+          TARGET="apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl"
+          if [ -d "$TARGET/_internal" ] && [ -f "$TARGET/desk-vid-dl" ]; then
+            echo "Downloader binary ready ($TARGET/desk-vid-dl)"
+          else
+            echo "ERROR: Invalid downloader bundle in $TARGET"
+            find "$TARGET" -type f
+            exit 1
+          fi
 
       - name: Set version
         working-directory: apps/desktop
