@@ -1,0 +1,123 @@
+name: Deploy (Test Build)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-windows:
+    name: Build Windows (NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          cache: false
+          cache_dependency_path: pnpm-lock.yaml
+
+      - name: Install Python setuptools
+        run: pip install setuptools
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build desk-vid-dl (Windows)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
+      - name: Set version
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          VERSION=$(node -p "require('./package.json').version")-beta.${{ github.run_number }}
+          echo "export const APP_VERSION = '${VERSION}';" > src/version.js
+
+      - name: Build Windows installer
+        working-directory: apps/desktop
+        run: pnpm electron:build
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexube-windows
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.exe.blockmap
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux (AppImage + deb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          cache: false
+          cache_dependency_path: pnpm-lock.yaml
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libgl1 libegl1 libdbus-1-3 libxkbcommon-x11-0
+
+      - name: Install Python setuptools
+        run: pip install setuptools
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter @nexube/types run build && pnpm --filter @nexube/store run build
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build desk-vid-dl (Linux)
+        working-directory: apps/desk-vid-dl
+        run: python build.py
+
+      - name: Set version
+        working-directory: apps/desktop
+        run: |
+          VERSION=$(node -p "require('./package.json').version")-beta.${{ github.run_number }}
+          echo "export const APP_VERSION = '${VERSION}';" > src/version.js
+
+      - name: Build Linux installers
+        working-directory: apps/desktop
+        run: pnpm electron:build
+
+      - name: Upload Linux installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexube-linux
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.AppImage.blockmap
+          retention-days: 14
