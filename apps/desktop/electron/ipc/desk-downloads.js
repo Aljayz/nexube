@@ -2,6 +2,7 @@ const { ipcMain, shell, dialog, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const {
   addDownload,
   updateDownload,
@@ -496,7 +497,7 @@ function register(getMainWindowFn) {
       if (!fs.existsSync(download.file_path)) {
         return { success: false, error: 'File missing' };
       }
-      return { success: true, filePath: download.file_path };
+      return { success: true, filePath: pathToFileURL(download.file_path).href.replace('file://', 'local-media://') };
     } catch (err) {
       return { success: false, error: err.message };
     }

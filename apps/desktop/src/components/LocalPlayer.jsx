@@ -10,7 +10,7 @@ function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function LocalPlayer({ filePath, title, onClose }) {
+export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -30,7 +30,7 @@ export default function LocalPlayer({ filePath, title, onClose }) {
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onError = () => setError('Failed to load video');
-    const onEnded = () => setPlaying(false);
+    const onEnded = () => { setPlaying(false); onVideoEnded?.(); };
 
     video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('durationchange', onDurationChange);
@@ -38,8 +38,6 @@ export default function LocalPlayer({ filePath, title, onClose }) {
     video.addEventListener('pause', onPause);
     video.addEventListener('error', onError);
     video.addEventListener('ended', onEnded);
-
-    video.play().catch(() => {});
 
     return () => {
       video.removeEventListener('timeupdate', onTimeUpdate);
@@ -122,12 +120,11 @@ export default function LocalPlayer({ filePath, title, onClose }) {
           <video
             ref={videoRef}
             className="w-full h-full"
+            src={filePath}
+            key={filePath}
             onClick={togglePlay}
             onDoubleClick={toggleFullscreen}
-          >
-            <source src={filePath} />
-            Your browser does not support the video tag.
-          </video>
+          />
 
           {error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60">

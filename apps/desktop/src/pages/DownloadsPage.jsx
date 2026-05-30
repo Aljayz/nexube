@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import { useDownloads } from '../hooks/useDownloads';
 import LocalPlayer from '../components/LocalPlayer';
+import OfflineDetailView from '../components/OfflineDetailView';
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -19,6 +20,7 @@ function DownloadsPage({ activeProfile }) {
   const [playingDownload, setPlayingDownload] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [offlineDetail, setOfflineDetail] = useState(null);
 
   useEffect(() => {
     refreshDownloads();
@@ -89,22 +91,7 @@ function DownloadsPage({ activeProfile }) {
     setScanning(false);
   };
 
-  if (loading) {
-    return <LoadingScreen message="Loading downloads..." />;
-  }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full px-xl text-center">
-        <span className="text-4xl mb-md"></span>
-        <h2 className="text-lg font-bold text-text-primary mb-sm">Failed to load downloads</h2>
-        <p className="text-sm text-text-muted mb-lg max-w-sm">{error}</p>
-        <button onClick={() => setRetryCount((c) => c + 1)} className="btn-primary">
-          Retry
-        </button>
-      </div>
-    );
-  }
 
   const activeDownloads = downloads.filter((d) => d.status === 'downloading');
   const pausedDownloads = downloads.filter((d) => d.status === 'paused');
@@ -113,9 +100,55 @@ function DownloadsPage({ activeProfile }) {
 
   const hasAnyContent = activeDownloads.length > 0 || pausedDownloads.length > 0 || completedDownloads.length > 0 || failedDownloads.length > 0;
 
+  const { movieCards, tvCards } = useMemo(() => {
+    const singleMovies = completedDownloads.filter((d) => d.type === 'movie' && d.season == null && d.episode == null);
+    const groupable = completedDownloads.filter((d) => d.type === 'tv' || (d.season != null));
+    const groups = {};
+    groupable.forEach((d) => {
+      const key = d.media_id;
+      if (!groups[key]) groups[key] = { media_id: key, title: d.title, type: d.type, poster_path: d.poster_path, tmdb_id: d.tmdb_id, items: [] };
+      groups[key].items.push(d);
+    });
+    const tvCards = Object.values(groups).sort((a, b) => {
+      const aDate = Math.max(...a.items.map((d) => new Date(d.added_at || 0).getTime()));
+      const bDate = Math.max(...b.items.map((d) => new Date(d.added_at || 0).getTime()));
+      return bDate - aDate;
+    });
+    const movieCards = singleMovies.map((d) => ({ media_id: d.media_id, title: d.title, type: d.type, poster_path: d.poster_path, tmdb_id: d.tmdb_id, items: [d] })).sort((a, b) => {
+      const aDate = new Date(a.items[0].added_at || 0).getTime();
+      const bDate = new Date(b.items[0].added_at || 0).getTime();
+      return bDate - aDate;
+    });
+    return { movieCards, tvCards };
+  }, [completedDownloads]);
+
   return (
-    <div className="px-lg py-lg">
-      <div className="flex items-center justify-between mb-lg">
+    <>
+      {offlineDetail ? (
+        <div className="h-full">
+          <OfflineDetailView
+            title={offlineDetail.title}
+            type={offlineDetail.type}
+            posterPath={offlineDetail.poster_path}
+            tmdbId={offlineDetail.tmdb_id}
+            items={offlineDetail.items}
+            onBack={() => setOfflineDetail(null)}
+          />
+        </div>
+      ) : loading ? (
+        <LoadingScreen message="Loading downloads..." />
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center h-full px-xl text-center">
+          <span className="text-4xl mb-md"></span>
+          <h2 className="text-lg font-bold text-text-primary mb-sm">Failed to load downloads</h2>
+          <p className="text-sm text-text-muted mb-lg max-w-sm">{error}</p>
+          <button onClick={() => setRetryCount((c) => c + 1)} className="btn-primary">
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="px-lg py-lg">
+          <div className="flex items-center justify-between mb-lg">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Downloads</h1>
           {hasAnyContent && (
@@ -375,68 +408,85 @@ function DownloadsPage({ activeProfile }) {
             </div>
           )}
 
-          {completedDownloads.length > 0 && (
+          {movieCards.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
-                <div className="w-2 h-2 rounded-full bg-success" />
-                Completed
+                <Film className="w-4 h-4" />
+                Movies
               </h2>
-              <div className="space-y-md">
-                {completedDownloads.map((download) => (
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 gap-sm">
+                {movieCards.map((card) => (
                   <div
-                    key={download.id}
-                    className="flex items-center gap-md p-md bg-surface rounded-card border border-success/20 hover:border-success/40 transition-colors"
+                    key={card.media_id}
+                    className="group cursor-pointer"
+                    onClick={() => setOfflineDetail(card)}
                   >
-                    <div className="w-16 h-24 rounded-card overflow-hidden flex-shrink-0 bg-surface/50">
-                      <img
-                        src={
-                          download.poster_path
-                            ? `https://image.tmdb.org/t/p/w92${download.poster_path}`
-                            : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" fill="%2312121A"></svg>'
-                        }
-                        alt={download.title}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="aspect-[2/3] bg-surface rounded-card overflow-hidden mb-2xs relative">
+                      {card.poster_path ? (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w185${card.poster_path}`}
+                          alt={card.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Film className="w-8 h-8 text-text-muted" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center">
+                          <Play className="w-5 h-5 text-background ml-0.5" />
+                        </div>
+                      </div>
                     </div>
+                    <h3 className="text-xs font-medium text-text-primary truncate">{card.title}</h3>
+                    <p className="text-xs text-text-muted mt-2xs">Movie</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-text-primary truncate">
-                        {download.title}
-                        {download.season && download.episode && (
-                          <span className="text-text-muted ml-sm">S{download.season}E{download.episode}</span>
-                        )}
-                      </h3>
-                      <p className="text-xs text-text-muted mt-xs">
-                        {formatBytes(download.total_bytes) || 'Unknown size'}
-                      </p>
-                      <p className="text-xs text-success mt-xs flex items-center gap-2xs">
-                        <CheckCircle className="w-3 h-3" />
-                        Downloaded
-                      </p>
+          {tvCards.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-md flex items-center gap-sm">
+                <Tv className="w-4 h-4" />
+                TV Series
+              </h2>
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 gap-sm">
+                {tvCards.map((card) => (
+                  <div
+                    key={card.media_id}
+                    className="group cursor-pointer"
+                    onClick={() => setOfflineDetail(card)}
+                  >
+                    <div className="aspect-[2/3] bg-surface rounded-card overflow-hidden mb-2xs relative">
+                      {card.poster_path ? (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w185${card.poster_path}`}
+                          alt={card.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Tv className="w-8 h-8 text-text-muted" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center">
+                          <Play className="w-5 h-5 text-background ml-0.5" />
+                        </div>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-xs">
-                      <button
-                        onClick={() => handlePlay(download)}
-                        className="btn-primary text-sm flex items-center gap-xs"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        Play
-                      </button>
-                      <button
-                        onClick={() => handleOpenFolder(download)}
-                        className="p-sm text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
-                        title="Open Folder"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(download.id)}
-                        className="p-sm text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <h3 className="text-xs font-medium text-text-primary truncate">{card.title}</h3>
+                    <div className="flex items-center gap-2xs mt-2xs">
+                      <span className="text-xs text-text-muted">{card.items.length} ep</span>
+                      <span className="text-xs text-accent">
+                        S{Math.min(...card.items.map((d) => d.season).filter((s) => s != null))}
+                        {[...new Set(card.items.map((d) => d.season).filter((s) => s != null))].length > 1
+                          ? `-S${Math.max(...card.items.map((d) => d.season).filter((s) => s != null))}`
+                          : ''}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -454,6 +504,8 @@ function DownloadsPage({ activeProfile }) {
         />
       )}
     </div>
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, session, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
 
@@ -96,7 +97,7 @@ function createWindow() {
     show: false,
   });
 
-  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: local-media:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
   const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
@@ -235,6 +236,10 @@ app.commandLine.appendSwitch('max-old-space-size', '256');
 app.commandLine.appendSwitch('renderer-process-limit', '3');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,InsecureCSPWarning');
 
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
+]);
+
 app.whenReady().then(() => {
   getDatabase();
   blockStats.loadBlockStats();
@@ -269,6 +274,61 @@ app.whenReady().then(() => {
       deleteDownload(row.id);
     }
   } catch {}
+
+  protocol.handle('local-media', (request) => {
+    try {
+      const parsed = new URL(request.url);
+      const filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
+      const stat = fs.statSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+        '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.wmv': 'video/x-ms-wmv',
+        '.flv': 'video/x-flv', '.m4v': 'video/x-m4v', '.ts': 'video/mp2t',
+        '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.flac': 'audio/flac',
+        '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.aac': 'audio/aac',
+      };
+      const contentType = mimeTypes[ext] || 'video/mp4';
+      const fileSize = stat.size;
+      const rangeHeader = request.headers.get('Range');
+
+      function streamFile(start, end) {
+        const readStream = fs.createReadStream(filePath, { start, end });
+        return new ReadableStream({
+          start(controller) {
+            readStream.on('data', (chunk) => controller.enqueue(chunk));
+            readStream.on('end', () => controller.close());
+            readStream.on('error', (err) => controller.error(err));
+          },
+          cancel() { readStream.destroy(); },
+        });
+      }
+
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+          return new Response(streamFile(start, end), {
+            status: 206,
+            headers: {
+              'Content-Type': contentType,
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Content-Length': String(end - start + 1),
+              'Accept-Ranges': 'bytes',
+            },
+          });
+        }
+      }
+
+      return new Response(streamFile(), {
+        status: 200,
+        headers: { 'Content-Type': contentType, 'Content-Length': String(fileSize), 'Accept-Ranges': 'bytes' },
+      });
+    } catch (err) {
+      return new Response(String(err), { status: 404 });
+    }
+  });
 
   ipcMain.handle('shell:openPath', async (_, filePath) => {
     return shell.openPath(filePath);
