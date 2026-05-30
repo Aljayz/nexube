@@ -3,6 +3,14 @@ import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, S
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useDownloads } from '../hooks/useDownloads';
 
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+}
+
 function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
   const profileId = activeProfile?.id || 'master-id';
   const { downloads, startDownload } = useDownloads(profileId);
@@ -458,9 +466,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
                     style={{ width: `${Math.min(activeDownload.progress || 0, 100).toFixed(1)}%` }}
                 />
               </div>
-              {activeDownload.speed && (
-                <p className="text-xs text-text-muted mt-xs">{activeDownload.speed}</p>
-              )}
             </div>
           )}
 
@@ -487,7 +492,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
               {downloading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Starting…
+                  Downloading…
                 </>
               ) : (
                 <>
