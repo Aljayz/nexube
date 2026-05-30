@@ -24,19 +24,19 @@ function resolveBinaryPath(token) {
 
 function getBundledBinaryPath() {
   const platform = process.platform;
-  const platformMap = { win32: 'windows', darwin: 'darwin' };
-  const platDir = platformMap[platform] || 'linux';
   const exeName = platform === 'win32' ? 'desk-vid-dl.exe' : 'desk-vid-dl';
-
-  // Dev mode: relative to this file's location
-  const devResourcePath = path.resolve(__dirname, '../../resources');
-  const devPath = path.join(devResourcePath, 'desk-vid-dl', platDir, 'desk-vid-dl', exeName);
-  if (fs.existsSync(devPath)) return devPath;
 
   // Packaged mode: process.resourcesPath/desk-vid-dl/desk-vid-dl
   if (process.resourcesPath) {
     const pkgPath = path.join(process.resourcesPath, 'desk-vid-dl', exeName);
     if (fs.existsSync(pkgPath)) return pkgPath;
+  }
+
+  // Dev mode: relative to this file's location
+  const devResourcePath = path.resolve(__dirname, '../../resources');
+  for (const subdir of ['linux', 'windows', 'darwin']) {
+    const devPath = path.join(devResourcePath, 'desk-vid-dl', subdir, 'desk-vid-dl', exeName);
+    if (fs.existsSync(devPath)) return devPath;
   }
 
   return null;
@@ -54,13 +54,25 @@ function _checkDownloader(folderPath) {
     return { exists: false, reason: 'no_internal' };
   }
   const KNOWN_BINARIES = ['desk-vid-dl', 'vid-dl'];
+  // Prefer known binary names first
+  for (const known of KNOWN_BINARIES) {
+    if (entries.includes(known)) {
+      const fullPath = path.join(folderPath, known);
+      try {
+        if (fs.statSync(fullPath).isFile()) {
+          return { exists: true, binaryPath: fullPath };
+        }
+      } catch {}
+    }
+  }
+  // Fall back to any executable in the directory
   const binary = entries.find((e) => {
     if (e === '_internal' || e.startsWith('.')) return false;
     try {
       const stat = fs.statSync(path.join(folderPath, e));
       if (!stat.isFile()) return false;
       if (process.platform === 'win32') return e.endsWith('.exe');
-      return !!(stat.mode & 0o111) || KNOWN_BINARIES.includes(e);
+      return !!(stat.mode & 0o111);
     } catch {
       return false;
     }
@@ -178,6 +190,12 @@ function startDownload({
     }
 
     console.log(`[desk-downloader] spawning: ${binaryPath} ${args.join(' ')}`);
+
+    // Ensure binary has execute permission (important for AppImage/deb)
+    try {
+      fs.chmodSync(binaryPath, 0o755);
+    } catch {}
+
     const proc = spawn(binaryPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
