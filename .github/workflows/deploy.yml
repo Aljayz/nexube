@@ -186,6 +186,9 @@ jobs:
           name: desk-vid-dl-linux
           path: apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/
 
+      - name: Set executable permission on downloader
+        run: chmod +x apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl/desk-vid-dl
+
       - name: Verify downloaded binary
         run: |
           TARGET="apps/desktop/resources/desk-vid-dl/linux/desk-vid-dl"
