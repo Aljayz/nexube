@@ -11,7 +11,7 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
 }
 
-function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
+function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onProfileUpdated }) {
   const profileId = activeProfile?.id || 'master-id';
   const { downloads, startDownload } = useDownloads(profileId);
   const [downloading, setDownloading] = useState(false);
@@ -136,6 +136,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
     if (folder) {
       setDownloadPath(folder);
       await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
+      onProfileUpdated?.();
       setSettingPath(false);
     }
   };
@@ -233,6 +234,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime }) {
                 disabled={!downloadPath.trim()}
                 onClick={async () => {
                   await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: downloadPath.trim() });
+                  onProfileUpdated?.();
                   setSettingPath(false);
                 }}
               >

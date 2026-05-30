@@ -12,7 +12,7 @@ import SubtitleModal from '../components/SubtitleModal';
 import DownloadModal from '../components/DownloadModal';
 import LoadingScreen from '../components/LoadingScreen';
 
-function DetailView({ media, activeProfile, onBack, onSelect }) {
+function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }) {
   const profileId = activeProfile?.id || 'master-id';
   const [retryCount, setRetryCount] = useState(0);
   const [showTrailerList, setShowTrailerList] = useState(false);
@@ -304,7 +304,7 @@ function DetailView({ media, activeProfile, onBack, onSelect }) {
         />
       )}
       {showSubtitles && <SubtitleModal tmdbId={media.tmdbId} type={media.type} onClose={() => setShowSubtitles(false)} />}
-      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} isAnime={details?.isAnime} onClose={() => setShowDownload(false)} />}
+      {showDownload && <DownloadModal media={media} activeProfile={activeProfile} sourceId={details?.selectedSource?.id} isAnime={details?.isAnime} onClose={() => setShowDownload(false)} onProfileUpdated={onProfileUpdated} />}
     </div>
   );
 }

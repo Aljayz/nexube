@@ -415,6 +415,7 @@ function App() {
                     activeProfile={activeProfile}
                     onBack={navigateBack}
                     onSelect={(item) => navigate('detail', item)}
+                    onProfileUpdated={handleProfileUpdated}
                   />
                 )}
                 {page === 'downloads' && <DownloadsPage key={activeProfile?.id} activeProfile={activeProfile} />}
