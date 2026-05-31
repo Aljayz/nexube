@@ -93,7 +93,7 @@ function remuxToMp4(filePath) {
   if (!ffmpegPath || !filePath || !fs.existsSync(filePath)) return Promise.resolve(false);
   const ext = path.extname(filePath).toLowerCase();
   if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return Promise.resolve(false);
-  const tmpPath = filePath + '.remux.tmp';
+  const tmpPath = filePath + '.remux.mp4';
   return new Promise((resolve) => {
     const proc = spawn(ffmpegPath, [
       '-i', filePath,
@@ -107,8 +107,15 @@ function remuxToMp4(filePath) {
     proc.on('close', (code) => {
       if (code === 0 && fs.existsSync(tmpPath)) {
         try {
-          fs.renameSync(tmpPath, filePath);
-          resolve(true);
+          if (ext !== '.mp4') {
+            fs.unlinkSync(filePath);
+            const mp4Target = path.join(path.dirname(filePath), path.parse(filePath).name + '.mp4');
+            fs.renameSync(tmpPath, mp4Target);
+            resolve(mp4Target);
+          } else {
+            fs.renameSync(tmpPath, filePath);
+            resolve(true);
+          }
         } catch {
           try { fs.unlinkSync(tmpPath); } catch {}
           resolve(false);
@@ -422,7 +429,9 @@ function startDownload({
       };
 
       if (entry.status === 'completed' && entry.filePath) {
-        remuxToMp4(entry.filePath).finally(finish);
+        remuxToMp4(entry.filePath).then((result) => {
+          if (result && result !== true) entry.filePath = result;
+        }).finally(finish);
       } else {
         finish();
       }

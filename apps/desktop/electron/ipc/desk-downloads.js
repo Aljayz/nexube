@@ -1378,7 +1378,11 @@ function register(getMainWindowFn) {
       updateDownload(row.id, { vaultPath: name, filePath: null });
       const vaultedPath = path.join(getVaultDir(), name);
       if (fs.existsSync(vaultedPath)) {
-        remuxToMp4(vaultedPath).catch(() => {});
+        remuxToMp4(vaultedPath).then((result) => {
+          if (result && result !== true) {
+            updateDownload(row.id, { vaultPath: path.basename(result) });
+          }
+        }).catch(() => {});
       }
     }
   } catch {}
@@ -1392,7 +1396,11 @@ function register(getMainWindowFn) {
     for (const row of vaulted) {
       const fullPath = path.join(getVaultDir(), row.vault_path);
       if (fs.existsSync(fullPath)) {
-        remuxToMp4(fullPath).catch(() => {});
+        remuxToMp4(fullPath).then((result) => {
+          if (result && result !== true) {
+            updateDownload(row.id, { vaultPath: path.basename(result) });
+          }
+        }).catch(() => {});
       }
     }
   } catch {}
