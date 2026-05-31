@@ -319,11 +319,14 @@ app.whenReady().then(() => {
 
   protocol.handle('vault', async (request) => {
     try {
-      let filePath = request.url.slice('vault://'.length);
-      if (!filePath.startsWith('/')) {
-        filePath = '/' + filePath;
+      const vaultUrl = new URL(request.url);
+      let filePath = decodeURIComponent(vaultUrl.pathname);
+      // On Windows, Chromium may treat a drive letter as the hostname
+      // (e.g. vault://c/Users/...) instead of keeping it in the path
+      // (vault:///C:/Users/...). Reconstruct the absolute path if so.
+      if (process.platform === 'win32' && vaultUrl.hostname && /^[a-zA-Z]$/.test(vaultUrl.hostname)) {
+        filePath = `/${vaultUrl.hostname.toUpperCase()}:${filePath}`;
       }
-      filePath = decodeURIComponent(filePath);
       if (!fs.existsSync(filePath)) {
         return new Response('Not found', { status: 404 });
       }
