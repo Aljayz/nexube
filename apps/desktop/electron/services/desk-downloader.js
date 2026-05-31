@@ -24,6 +24,7 @@ function resolveToolBinary(binaryPath) {
   if (!binaryPath) return null;
   try {
     fs.accessSync(binaryPath, fs.constants.X_OK);
+    console.log('[remux] using binary:', binaryPath);
     return binaryPath;
   } catch {}
   try {
@@ -33,10 +34,11 @@ function resolveToolBinary(binaryPath) {
       fs.copyFileSync(binaryPath, dest);
       try { fs.chmodSync(dest, 0o755); } catch {}
     }
+    console.log('[remux] extracted to:', dest);
     return dest;
   } catch (e) {
     console.warn('[remux] cannot extract binary:', binaryPath, e.message);
-    return binaryPath;
+    return null;
   }
 }
 
@@ -190,10 +192,12 @@ function remuxToMp4(filePath) {
   if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return Promise.resolve(false);
   const probeBin = resolveToolBinary(ffprobePath);
   const needsRemux = !probeBin;
+  console.log('[remux] remuxToMp4 ffprobe=', !!probeBin, 'needsRemux=', needsRemux, 'file=', filePath);
   if (needsRemux) console.log('[remux] ffprobe unavailable, always remuxing');
   else console.log('[remux] probing', filePath);
   return (needsRemux ? Promise.resolve(true) : isMpegTs(filePath)).then((isTs) => {
-    if (!isTs) { console.log('[remux] already proper mp4, skip'); return true; }
+    console.log('[remux] remuxToMp4 isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'skip');
+    if (!isTs) return true;
     console.log('[remux] is mpegts, remuxing...');
     const tmpPath = filePath + '.remux.mp4';
     return ffmpegRemux(ffmpeg, filePath, tmpPath).then((ok) => {
@@ -221,8 +225,10 @@ function remuxToFile(sourcePath, destPath) {
   try { fs.mkdirSync(path.dirname(destPath), { recursive: true }); } catch {}
   const probeBin = resolveToolBinary(ffprobePath);
   const needsRemux = !probeBin;
+  console.log('[remux] remuxToFile ffprobe=', !!probeBin, 'needsRemux=', needsRemux, 'src=', sourcePath, 'dst=', destPath);
   if (needsRemux) console.log('[remux] remuxToFile ffprobe unavailable, always remuxing');
   return (needsRemux ? Promise.resolve(true) : isMpegTs(sourcePath)).then((isTs) => {
+    console.log('[remux] remuxToFile isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'copy');
     if (isTs) {
       console.log('[remux] remuxToFile remuxing to', destPath);
       return ffmpegRemux(ffmpeg, sourcePath, destPath);
