@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, shell, protocol } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { getDatabase, closeDatabase } = require('@nexube/store');
@@ -97,7 +97,7 @@ function createWindow() {
     show: false,
   });
 
-  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: local-media: media:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
   const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
@@ -236,11 +236,6 @@ app.commandLine.appendSwitch('max-old-space-size', '256');
 app.commandLine.appendSwitch('renderer-process-limit', '3');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,InsecureCSPWarning');
 
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'local-media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
-  { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true } },
-]);
-
 app.whenReady().then(() => {
   getDatabase(path.join(app.getPath('userData'), 'nexube.db'));
   blockStats.loadBlockStats();
@@ -268,95 +263,27 @@ app.whenReady().then(() => {
     });
 
   try {
-    const { getDatabase, deleteDownload } = require('@nexube/store');
-    const db = getDatabase();
-    const orphaned = db.prepare("SELECT id FROM downloads WHERE status = 'downloading'").all();
-    for (const row of orphaned) {
-      deleteDownload(row.id);
-    }
-  } catch {}
-
-  function serveLocalFile(filePath, rangeHeader) {
-    const stat = fs.statSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
-      '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.m4v': 'video/mp4',
-    };
-    const contentType = mimeTypes[ext] || 'video/mp4';
-    const fileSize = stat.size;
-
-    if (rangeHeader) {
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-      if (match) {
-        const start = parseInt(match[1], 10);
-        const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
-        const stream = fs.createReadStream(filePath, { start, end });
-        const body = new ReadableStream({
-          start(c) { stream.on('data', (d) => c.enqueue(d)); stream.on('end', () => c.close()); stream.on('error', (e) => c.error(e)); },
-          cancel() { stream.destroy(); },
-        });
-        return new Response(body, {
-          status: 206,
-          headers: {
-            'Content-Type': contentType,
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-            'Content-Length': String(end - start + 1),
-            'Accept-Ranges': 'bytes',
-            'Access-Control-Allow-Origin': '*',
-          },
-        });
+      const { getDatabase, deleteDownload } = require('@nexube/store');
+      const db = getDatabase();
+      const orphaned = db.prepare("SELECT id FROM downloads WHERE status = 'downloading'").all();
+      for (const row of orphaned) {
+        deleteDownload(row.id);
       }
-    }
+    } catch {}
 
-    const stream = fs.createReadStream(filePath);
-    const body = new ReadableStream({
-      start(c) { stream.on('data', (d) => c.enqueue(d)); stream.on('end', () => c.close()); stream.on('error', (e) => c.error(e)); },
-      cancel() { stream.destroy(); },
-    });
-    return new Response(body, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': String(fileSize),
-        'Accept-Ranges': 'bytes',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  }
-
-  function parseMediaUrl(url) {
-    const parsed = new URL(url);
-    let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
-    if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
-      filePath = filePath.slice(1);
-    }
-    return filePath;
-  }
-
-  protocol.handle('media', async (request) => {
+    // Cleanup any stale playback vault files
     try {
-      const filePath = parseMediaUrl(request.url);
-      console.log(`[media] serving file: ${filePath}`);
-      return serveLocalFile(filePath, request.headers.get('Range'));
-    } catch (err) {
-      console.error(`[media] Failed to serve ${request.url}:`, err);
-      return new Response(String(err), { status: 500 });
-    }
-  });
+      const vaultDir = path.join(app.getPath('userData'), 'vault');
+      if (fs.existsSync(vaultDir)) {
+        for (const entry of fs.readdirSync(vaultDir, { withFileTypes: true })) {
+          if (entry.isFile()) {
+            try { fs.unlinkSync(path.join(vaultDir, entry.name)); } catch {}
+          }
+        }
+      }
+    } catch {}
 
-  protocol.handle('local-media', async (request) => {
-    try {
-      const filePath = parseMediaUrl(request.url);
-      console.log(`[local-media] serving file: ${filePath}`);
-      return serveLocalFile(filePath, request.headers.get('Range'));
-    } catch (err) {
-      console.error(`[local-media] Failed to serve ${request.url}:`, err);
-      return new Response(String(err), { status: 404 });
-    }
-  });
-
-  ipcMain.handle('shell:openPath', async (_, filePath) => {
+    ipcMain.handle('shell:openPath', async (_, filePath) => {
     return shell.openPath(filePath);
   });
 

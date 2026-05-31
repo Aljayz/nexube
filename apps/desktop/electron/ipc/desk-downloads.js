@@ -34,6 +34,12 @@ function sendProgress(update) {
   if (mw && !mw.isDestroyed()) {
     mw.webContents.send('desk-download:progress', update);
   }
+  if (update.status === 'completed' && update.filePath && update.id && fs.existsSync(update.filePath)) {
+    try {
+      const vaultName = moveToVault(update.id, update.filePath);
+      updateDownload(update.id, { vaultPath: vaultName, filePath: null });
+    } catch {}
+  }
 }
 
 function updateDownloadEntry(id, entry) {
@@ -43,6 +49,61 @@ function updateDownloadEntry(id, entry) {
 let _getMainWindow = null;
 function getMainWindow() {
   return typeof _getMainWindow === 'function' ? _getMainWindow() : null;
+}
+
+// ── Vault management ──────────────────────────────────────────────────────────
+function getVaultDir() {
+  return path.join(app.getPath('userData'), 'vault');
+}
+
+function vaultFilename(downloadId, filePath) {
+  const hash = crypto.createHash('md5').update(downloadId).digest('hex').slice(0, 16);
+  const ext = filePath ? path.extname(filePath) : '.mp4';
+  return `${hash}${ext}`;
+}
+
+function moveToVault(downloadId, sourcePath) {
+  const vaultDir = getVaultDir();
+  if (!fs.existsSync(vaultDir)) fs.mkdirSync(vaultDir, { recursive: true });
+  const name = vaultFilename(downloadId, sourcePath);
+  const dest = path.join(vaultDir, name);
+  if (fs.existsSync(dest)) fs.unlinkSync(dest);
+  fs.renameSync(sourcePath, dest);
+  return name;
+}
+
+function getVaultPath(downloadId, filePath) {
+  const name = vaultFilename(downloadId, filePath);
+  return path.join(getVaultDir(), name);
+}
+
+function vaultFileExists(downloadId, filePath) {
+  return fs.existsSync(getVaultPath(downloadId, filePath));
+}
+
+function removeFromVault(downloadId, filePath) {
+  const vaultPath = getVaultPath(downloadId, filePath);
+  try { if (fs.existsSync(vaultPath)) fs.unlinkSync(vaultPath); } catch {}
+}
+
+function cleanupPlaybackVault() {
+  const vaultDir = getVaultDir();
+  if (!fs.existsSync(vaultDir)) return;
+  for (const entry of fs.readdirSync(vaultDir, { withFileTypes: true })) {
+    if (entry.isFile()) {
+      try { fs.unlinkSync(path.join(vaultDir, entry.name)); } catch {}
+    }
+  }
+}
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+function getDownloadFilePath(download) {
+  if (download.vault_path) {
+    const vaultP = path.join(getVaultDir(), download.vault_path);
+    if (fs.existsSync(vaultP)) return vaultP;
+  }
+  if (download.file_path && fs.existsSync(download.file_path)) return download.file_path;
+  return null;
 }
 
 function register(getMainWindowFn) {
@@ -737,15 +798,19 @@ function register(getMainWindowFn) {
       killDownload(downloadId);
       const download = getDownload(downloadId);
       if (download) {
-        const safeName = download.type === 'tv'
-          ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')}${download.episode_name ? ` - ${download.episode_name}` : ''}`
-          : `${download.title}`;
-        cleanupPartialFiles({
-          filePath: download.file_path,
-          downloadPath: download.download_path,
-          name: safeName,
-          mediaType: download.type,
-        });
+        if (download.vault_path) {
+          removeFromVault(downloadId, download.file_path);
+        } else {
+          const safeName = download.type === 'tv'
+            ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')}${download.episode_name ? ` - ${download.episode_name}` : ''}`
+            : `${download.title}`;
+          cleanupPartialFiles({
+            filePath: download.file_path,
+            downloadPath: download.download_path,
+            name: safeName,
+            mediaType: download.type,
+          });
+        }
       }
       deleteDownload(downloadId);
       return { success: true };
@@ -773,15 +838,16 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:play', async (_, downloadId) => {
     try {
       const download = getDownload(downloadId);
-      if (!download || !download.file_path) {
-        return { success: false, error: 'File not found' };
+      if (!download) return { success: false, error: 'Download not found' };
+
+      const vaultP = download.vault_path ? path.join(getVaultDir(), download.vault_path) : null;
+      if (vaultP && fs.existsSync(vaultP)) {
+        return { success: true, filePath: pathToFileURL(vaultP).toString() };
       }
-      if (!fs.existsSync(download.file_path)) {
-        return { success: false, error: 'File missing' };
+      if (download.file_path && fs.existsSync(download.file_path)) {
+        return { success: true, filePath: pathToFileURL(download.file_path).toString() };
       }
-      const normalizedPath = download.file_path.replace(/\\/g, '/');
-      const encodedPath = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/');
-      return { success: true, filePath: `media:///${encodedPath.replace(/^\//, '')}` };
+      return { success: false, error: 'File not found' };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -790,12 +856,10 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:play-external', async (_, downloadId) => {
     try {
       const download = getDownload(downloadId);
-      if (!download || !download.file_path) {
-        return { success: false, error: 'File not found' };
-      }
-      if (!fs.existsSync(download.file_path)) {
-        return { success: false, error: 'File missing' };
-      }
+      if (!download) return { success: false, error: 'File not found' };
+
+      const actualPath = getDownloadFilePath(download);
+      if (!actualPath) return { success: false, error: 'File not found' };
 
       const isTv = download.season != null;
       let playlist = [];
@@ -803,17 +867,23 @@ function register(getMainWindowFn) {
       if (isTv) {
         const db = require('@nexube/store').getDatabase();
         const rows = db.prepare(
-          `SELECT * FROM downloads WHERE media_id = ? AND season = ? AND status = 'completed' AND file_path IS NOT NULL ORDER BY episode ASC`
+          `SELECT * FROM downloads WHERE media_id = ? AND season = ? AND status = 'completed' ORDER BY episode ASC`
         ).all(download.media_id, download.season);
-        playlist = rows.filter((r) => fs.existsSync(r.file_path));
+        for (const r of rows) {
+          const p = getDownloadFilePath(r);
+          if (p) playlist.push({ ...r, resolvedPath: p });
+        }
       } else if (download.collection_id) {
         const db = require('@nexube/store').getDatabase();
         const rows = db.prepare(
-          `SELECT * FROM downloads WHERE collection_id = ? AND status = 'completed' AND file_path IS NOT NULL ORDER BY media_id ASC`
+          `SELECT * FROM downloads WHERE collection_id = ? AND status = 'completed' ORDER BY media_id ASC`
         ).all(download.collection_id);
-        playlist = rows.filter((r) => fs.existsSync(r.file_path));
+        for (const r of rows) {
+          const p = getDownloadFilePath(r);
+          if (p) playlist.push({ ...r, resolvedPath: p });
+        }
       } else {
-        playlist = [download];
+        playlist = [{ ...download, resolvedPath: actualPath }];
       }
 
       const hasPlaylist = isTv || download.collection_id;
@@ -830,7 +900,7 @@ function register(getMainWindowFn) {
           vlcArgs.push(`--playlist-start=${selectedIndex}`);
         }
         for (const item of playlist) {
-          vlcArgs.push(item.file_path);
+          vlcArgs.push(item.resolvedPath);
         }
         const child = spawn(vlcPath, vlcArgs, {
           detached: true,
@@ -839,10 +909,99 @@ function register(getMainWindowFn) {
         child.unref();
       } else {
         player = 'default';
-        shell.openPath(playlist[selectedIndex]?.file_path || download.file_path);
+        shell.openPath(playlist[selectedIndex]?.resolvedPath || actualPath);
       }
 
       return { success: true, player, episodes: playlist.length };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:export-single', async (_, downloadId) => {
+    try {
+      const download = getDownload(downloadId);
+      if (!download) return { success: false, error: 'Download not found' };
+
+      const sourcePath = getDownloadFilePath(download);
+      if (!sourcePath) return { success: false, error: 'File not found' };
+
+      const defaultName = download.episode_name
+        ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')} - ${download.episode_name}${path.extname(sourcePath)}`
+        : `${download.title}${path.extname(sourcePath)}`;
+
+      const result = await dialog.showSaveDialog(null, {
+        title: 'Export File',
+        defaultPath: defaultName,
+        filters: [{ name: 'Video Files', extensions: ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'] }],
+      });
+      if (result.canceled || !result.filePath) return { success: false, canceled: true };
+
+      fs.copyFileSync(sourcePath, result.filePath);
+      return { success: true, filePath: result.filePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:export-bulk', async (_, { downloadIds, destinationDir }) => {
+    try {
+      if (!destinationDir) {
+        const result = await dialog.showOpenDialog(null, {
+          title: 'Select Export Destination',
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
+        destinationDir = result.filePaths[0];
+      }
+
+      let exported = 0;
+      const errors = [];
+
+      for (const id of downloadIds) {
+        try {
+          const download = getDownload(id);
+          if (!download) { errors.push({ id, error: 'Not found' }); continue; }
+          const sourcePath = getDownloadFilePath(download);
+          if (!sourcePath) { errors.push({ id, error: 'File not found' }); continue; }
+
+          const name = download.episode_name
+            ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')} - ${download.episode_name}${path.extname(sourcePath)}`
+            : `${download.title}${path.extname(sourcePath)}`;
+
+          const sanitized = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
+          let destPath = path.join(destinationDir, sanitized);
+          let counter = 1;
+          while (fs.existsSync(destPath)) {
+            const ext = path.extname(sanitized);
+            const base = path.basename(sanitized, ext);
+            destPath = path.join(destinationDir, `${base} (${counter})${ext}`);
+            counter++;
+          }
+          fs.copyFileSync(sourcePath, destPath);
+          exported++;
+        } catch (e) {
+          errors.push({ id, error: e.message });
+        }
+      }
+
+      return { success: true, exported, errors: errors.length > 0 ? errors : undefined };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:get-vault-info', async (_, downloadId) => {
+    try {
+      const download = getDownload(downloadId);
+      if (!download) return { success: false, error: 'Not found' };
+      return {
+        success: true,
+        vaulted: !!download.vault_path,
+        vaultPath: download.vault_path || null,
+        filePath: download.file_path || null,
+        size: download.size,
+      };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1190,6 +1349,22 @@ function register(getMainWindowFn) {
       shell.showItemInFolder(filePath);
     }
   });
+
+  // ── Vault migration ────────────────────────────────────────────────────────
+  cleanupPlaybackVault();
+  try {
+    const db = require('@nexube/store').getDatabase();
+    const legacy = db.prepare(
+      `SELECT id, file_path, vault_path FROM downloads WHERE status = 'completed' AND file_path IS NOT NULL AND vault_path IS NULL`
+    ).all();
+    for (const row of legacy) {
+      if (!row.file_path || !fs.existsSync(row.file_path)) continue;
+      try {
+        const name = moveToVault(row.id, row.file_path);
+        updateDownload(row.id, { vaultPath: name, filePath: null });
+      } catch {}
+    }
+  } catch {}
 
   _processDownloadQueue();
 }
