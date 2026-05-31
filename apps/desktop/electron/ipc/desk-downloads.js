@@ -780,7 +780,8 @@ function register(getMainWindowFn) {
         return { success: false, error: 'File missing' };
       }
       const normalizedPath = download.file_path.replace(/\\/g, '/');
-      return { success: true, filePath: `media:///${normalizedPath.replace(/^\//, '')}` };
+      const encodedPath = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/');
+      return { success: true, filePath: `media:///${encodedPath.replace(/^\//, '')}` };
     } catch (err) {
       return { success: false, error: err.message };
     }

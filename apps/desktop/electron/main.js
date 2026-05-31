@@ -1,7 +1,6 @@
-const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { pathToFileURL } = require('url');
 const { getDatabase, closeDatabase } = require('@nexube/store');
 const APP_VERSION = require('../package.json').version;
 
@@ -277,15 +276,69 @@ app.whenReady().then(() => {
     }
   } catch {}
 
+  function serveLocalFile(filePath, rangeHeader) {
+    const stat = fs.statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+      '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.m4v': 'video/mp4',
+    };
+    const contentType = mimeTypes[ext] || 'video/mp4';
+    const fileSize = stat.size;
+
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+        const stream = fs.createReadStream(filePath, { start, end });
+        const body = new ReadableStream({
+          start(c) { stream.on('data', (d) => c.enqueue(d)); stream.on('end', () => c.close()); stream.on('error', (e) => c.error(e)); },
+          cancel() { stream.destroy(); },
+        });
+        return new Response(body, {
+          status: 206,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Content-Length': String(end - start + 1),
+            'Accept-Ranges': 'bytes',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    }
+
+    const stream = fs.createReadStream(filePath);
+    const body = new ReadableStream({
+      start(c) { stream.on('data', (d) => c.enqueue(d)); stream.on('end', () => c.close()); stream.on('error', (e) => c.error(e)); },
+      cancel() { stream.destroy(); },
+    });
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(fileSize),
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
+  function parseMediaUrl(url) {
+    const parsed = new URL(url);
+    let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
+    if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
+      filePath = filePath.slice(1);
+    }
+    return filePath;
+  }
+
   protocol.handle('media', async (request) => {
     try {
-      const parsed = new URL(request.url);
-      let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
-      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
-        filePath = filePath.slice(1);
-      }
+      const filePath = parseMediaUrl(request.url);
       console.log(`[media] serving file: ${filePath}`);
-      return net.fetch(pathToFileURL(filePath).toString());
+      return serveLocalFile(filePath, request.headers.get('Range'));
     } catch (err) {
       console.error(`[media] Failed to serve ${request.url}:`, err);
       return new Response(String(err), { status: 500 });
@@ -294,13 +347,9 @@ app.whenReady().then(() => {
 
   protocol.handle('local-media', async (request) => {
     try {
-      const parsed = new URL(request.url);
-      let filePath = decodeURIComponent(parsed.hostname ? '/' + parsed.hostname + parsed.pathname : parsed.pathname);
-      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
-        filePath = filePath.slice(1);
-      }
+      const filePath = parseMediaUrl(request.url);
       console.log(`[local-media] serving file: ${filePath}`);
-      return net.fetch(pathToFileURL(filePath).toString());
+      return serveLocalFile(filePath, request.headers.get('Range'));
     } catch (err) {
       console.error(`[local-media] Failed to serve ${request.url}:`, err);
       return new Response(String(err), { status: 404 });
