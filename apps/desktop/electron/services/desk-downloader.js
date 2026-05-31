@@ -90,9 +90,9 @@ function _checkDownloader(folderPath) {
 }
 
 function remuxToMp4(filePath) {
-  if (!ffmpegPath || !filePath || !fs.existsSync(filePath)) return false;
+  if (!ffmpegPath || !filePath || !fs.existsSync(filePath)) return Promise.resolve(false);
   const ext = path.extname(filePath).toLowerCase();
-  if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return false;
+  if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return Promise.resolve(false);
   const tmpPath = filePath + '.remux.tmp';
   return new Promise((resolve) => {
     const proc = spawn(ffmpegPath, [
