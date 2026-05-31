@@ -5,10 +5,17 @@ const os = require('os');
 const crypto = require('crypto');
 
 let ffmpegPath = null;
+let ffprobePath = null;
 try {
   const resolved = require('ffmpeg-static');
   if (resolved && typeof resolved === 'string' && fs.existsSync(resolved)) {
     ffmpegPath = resolved;
+  }
+} catch {}
+try {
+  const resolved = require('ffprobe-installer');
+  if (resolved && resolved.path && fs.existsSync(resolved.path)) {
+    ffprobePath = resolved.path;
   }
 } catch {}
 
@@ -89,45 +96,66 @@ function _checkDownloader(folderPath) {
   return { exists: true, binaryPath: path.join(folderPath, binary) };
 }
 
+function isMpegTs(filePath) {
+  if (!ffprobePath || !filePath || !fs.existsSync(filePath)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const proc = spawn(ffprobePath, [
+      '-v', 'error',
+      '-show_entries', 'format=format_name',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ], { stdio: 'pipe' });
+    let stdout = '';
+    proc.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    proc.on('close', (code) => {
+      resolve(code === 0 && stdout.trim() === 'mpegts');
+    });
+    proc.on('error', () => resolve(false));
+  });
+}
+
 function remuxToMp4(filePath) {
   if (!ffmpegPath || !filePath || !fs.existsSync(filePath)) return Promise.resolve(false);
   const ext = path.extname(filePath).toLowerCase();
   if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return Promise.resolve(false);
-  const tmpPath = filePath + '.remux.mp4';
-  return new Promise((resolve) => {
-    const proc = spawn(ffmpegPath, [
-      '-i', filePath,
-      '-c', 'copy',
-      '-movflags', '+faststart',
-      '-y',
-      tmpPath,
-    ], { stdio: 'pipe' });
-    let stderr = '';
-    proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    proc.on('close', (code) => {
-      if (code === 0 && fs.existsSync(tmpPath)) {
-        try {
-          if (ext !== '.mp4') {
-            fs.unlinkSync(filePath);
-            const mp4Target = path.join(path.dirname(filePath), path.parse(filePath).name + '.mp4');
-            fs.renameSync(tmpPath, mp4Target);
-            resolve(mp4Target);
-          } else {
-            fs.renameSync(tmpPath, filePath);
-            resolve(true);
+  return isMpegTs(filePath).then((isTs) => {
+    if (!isTs) return true;
+    const tmpPath = filePath + '.remux.mp4';
+    return new Promise((resolve) => {
+      const proc = spawn(ffmpegPath, [
+        '-i', filePath,
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        '-y',
+        tmpPath,
+      ], { stdio: 'pipe' });
+      let stderr = '';
+      proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(tmpPath)) {
+          try {
+            if (ext !== '.mp4') {
+              fs.unlinkSync(filePath);
+              const mp4Target = path.join(path.dirname(filePath), path.parse(filePath).name + '.mp4');
+              fs.renameSync(tmpPath, mp4Target);
+              resolve(mp4Target);
+            } else {
+              fs.renameSync(tmpPath, filePath);
+              resolve(true);
+            }
+          } catch {
+            try { fs.unlinkSync(tmpPath); } catch {}
+            resolve(false);
           }
-        } catch {
+        } else {
           try { fs.unlinkSync(tmpPath); } catch {}
           resolve(false);
         }
-      } else {
+      });
+      proc.on('error', () => {
         try { fs.unlinkSync(tmpPath); } catch {}
         resolve(false);
-      }
-    });
-    proc.on('error', () => {
-      try { fs.unlinkSync(tmpPath); } catch {}
-      resolve(false);
+      });
     });
   });
 }
