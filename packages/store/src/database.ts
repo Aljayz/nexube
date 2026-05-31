@@ -276,6 +276,9 @@ function migrateDatabase(): void {
     try {
       db!.exec('ALTER TABLE downloads ADD COLUMN vault_path TEXT');
     } catch {}
+    try {
+      db!.exec('ALTER TABLE downloads ADD COLUMN remux_path TEXT');
+    } catch {}
 
     try {
       const ddl = db!.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='downloads'").get() as { sql: string } | undefined;
@@ -805,6 +808,7 @@ export function updateDownload(id: string, updates: {
   error?: string;
   filePath?: string;
   vaultPath?: string;
+  remuxPath?: string;
   size?: number;
   processId?: number;
   startedAt?: string;
@@ -825,6 +829,7 @@ export function updateDownload(id: string, updates: {
   if (updates.error !== undefined) { fields.push('error = ?'); values.push(updates.error); }
   if (updates.filePath !== undefined) { fields.push('file_path = ?'); values.push(updates.filePath); }
   if (updates.vaultPath !== undefined) { fields.push('vault_path = ?'); values.push(updates.vaultPath); }
+  if (updates.remuxPath !== undefined) { fields.push('remux_path = ?'); values.push(updates.remuxPath); }
   if (updates.size !== undefined) { fields.push('size = ?'); values.push(updates.size); }
   if (updates.processId !== undefined) { fields.push('process_id = ?'); values.push(updates.processId); }
   if (updates.startedAt !== undefined) { fields.push('started_at = ?'); values.push(updates.startedAt); }

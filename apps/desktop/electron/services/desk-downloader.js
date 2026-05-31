@@ -200,6 +200,63 @@ function remuxToMp4(filePath) {
   });
 }
 
+function remuxToFile(sourcePath, destPath) {
+  const ffmpeg = resolveToolBinary(ffmpegPath);
+  if (!ffmpeg || !sourcePath || !fs.existsSync(sourcePath)) {
+    console.log('[remux] remuxToFile skip: ffmpeg=', !!ffmpeg, 'source=', !!sourcePath, 'exists=', sourcePath ? fs.existsSync(sourcePath) : false);
+    return Promise.resolve(false);
+  }
+  try { fs.mkdirSync(path.dirname(destPath), { recursive: true }); } catch {}
+  return isMpegTs(sourcePath).then((isTs) => {
+    if (isTs) {
+      console.log('[remux] remuxToFile mpegts, remuxing to', destPath);
+      const tmpPath = destPath + '.remux.tmp';
+      return new Promise((resolve) => {
+        const proc = spawn(ffmpeg, [
+          '-i', sourcePath,
+          '-c', 'copy',
+          '-movflags', '+faststart',
+          '-y',
+          tmpPath,
+        ], { stdio: 'pipe' });
+        let stderr = '';
+        proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        proc.on('close', (code) => {
+          if (code === 0 && fs.existsSync(tmpPath)) {
+            try {
+              fs.renameSync(tmpPath, destPath);
+              console.log('[remux] remuxToFile success');
+              resolve(true);
+            } catch (e) {
+              console.warn('[remux] remuxToFile rename failed:', e.message);
+              try { fs.unlinkSync(tmpPath); } catch {}
+              resolve(false);
+            }
+          } else {
+            console.warn('[remux] remuxToFile ffmpeg failed code:', code, 'stderr:', stderr.slice(-500));
+            try { fs.unlinkSync(tmpPath); } catch {}
+            resolve(false);
+          }
+        });
+        proc.on('error', (err) => {
+          console.warn('[remux] remuxToFile spawn error:', err.message);
+          try { fs.unlinkSync(tmpPath); } catch {}
+          resolve(false);
+        });
+      });
+    } else {
+      console.log('[remux] remuxToFile already proper mp4, copying');
+      try {
+        fs.copyFileSync(sourcePath, destPath);
+        return Promise.resolve(true);
+      } catch (e) {
+        console.warn('[remux] remuxToFile copy failed:', e.message);
+        return Promise.resolve(false);
+      }
+    }
+  });
+}
+
 function checkDownloader(folderPath) {
   const result = _checkDownloader(folderPath);
   if (!result.exists) return result;
@@ -745,4 +802,6 @@ module.exports = {
   killAllDownloads,
   getBundledBinaryPath,
   remuxToMp4,
+  remuxToFile,
+  isMpegTs,
 };
