@@ -89,6 +89,42 @@ function _checkDownloader(folderPath) {
   return { exists: true, binaryPath: path.join(folderPath, binary) };
 }
 
+function remuxToMp4(filePath) {
+  if (!ffmpegPath || !filePath || !fs.existsSync(filePath)) return false;
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return false;
+  const tmpPath = filePath + '.remux.tmp';
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, [
+      '-i', filePath,
+      '-c', 'copy',
+      '-movflags', '+faststart',
+      '-y',
+      tmpPath,
+    ], { stdio: 'pipe' });
+    let stderr = '';
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    proc.on('close', (code) => {
+      if (code === 0 && fs.existsSync(tmpPath)) {
+        try {
+          fs.renameSync(tmpPath, filePath);
+          resolve(true);
+        } catch {
+          try { fs.unlinkSync(tmpPath); } catch {}
+          resolve(false);
+        }
+      } else {
+        try { fs.unlinkSync(tmpPath); } catch {}
+        resolve(false);
+      }
+    });
+    proc.on('error', () => {
+      try { fs.unlinkSync(tmpPath); } catch {}
+      resolve(false);
+    });
+  });
+}
+
 function checkDownloader(folderPath) {
   const result = _checkDownloader(folderPath);
   if (!result.exists) return result;
@@ -103,6 +139,10 @@ function checkBundledAndRegister() {
   if (!result.exists) return result;
   const token = registerBinaryPath(result.binaryPath);
   return { exists: true, token };
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/['"\\/:?*<>|]/g, '').trim();
 }
 
 function startDownload({
@@ -123,6 +163,7 @@ function startDownload({
   referer,
 }, sendProgress, getDownloads, updateDownloadEntry, persistDownload) {
   try {
+    name = sanitizeFilename(name);
     const id = downloadId || crypto.randomUUID();
 
     if (activeProcs.has(id)) {
@@ -353,18 +394,38 @@ function startDownload({
         } catch {}
       }
 
-      sendProgress({
-        id,
-        name,
-        status: entry.status,
-        progress: entry.progress,
-        completedAt: entry.completedAt,
-        filePath: entry.filePath,
-        size: entry.size,
-        lastMessage: entry.lastMessage,
-        logPath: entry.logPath,
-      });
-      persistProgress();
+      const finish = () => {
+        if (entry.filePath) {
+          try {
+            const bytes = fs.statSync(entry.filePath).size;
+            entry.size = bytes > 1e9
+              ? (bytes / 1e9).toFixed(2) + ' GB'
+              : bytes > 1e6
+                ? (bytes / 1e6).toFixed(1) + ' MB'
+                : bytes > 1e3
+                  ? (bytes / 1e3).toFixed(1) + ' KB'
+                  : bytes + ' B';
+          } catch {}
+        }
+        sendProgress({
+          id,
+          name,
+          status: entry.status,
+          progress: entry.progress,
+          completedAt: entry.completedAt,
+          filePath: entry.filePath,
+          size: entry.size,
+          lastMessage: entry.lastMessage,
+          logPath: entry.logPath,
+        });
+        persistProgress();
+      };
+
+      if (entry.status === 'completed' && entry.filePath) {
+        remuxToMp4(entry.filePath).finally(finish);
+      } else {
+        finish();
+      }
     });
 
     return { ok: true, id };
@@ -606,4 +667,5 @@ module.exports = {
   cleanupPartialFiles,
   killAllDownloads,
   getBundledBinaryPath,
+  remuxToMp4,
 };

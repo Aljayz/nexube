@@ -25,6 +25,7 @@ const {
   cleanupPartialFiles,
   killAllDownloads,
   isDownloadActive,
+  remuxToMp4,
 } = require('../services/desk-downloader');
 
 const downloadsStore = new Map();
@@ -1365,7 +1366,7 @@ function register(getMainWindowFn) {
     }
   });
 
-  // ── Vault migration ────────────────────────────────────────────────────────
+  // ── Vault migration & remux ────────────────────────────────────────────────
   try {
     const db = require('@nexube/store').getDatabase();
     const legacy = db.prepare(
@@ -1375,6 +1376,24 @@ function register(getMainWindowFn) {
       if (!row.file_path || !fs.existsSync(row.file_path)) continue;
       const name = moveToVault(row.id, row.file_path);
       updateDownload(row.id, { vaultPath: name, filePath: null });
+      const vaultedPath = path.join(getVaultDir(), name);
+      if (fs.existsSync(vaultedPath)) {
+        remuxToMp4(vaultedPath).catch(() => {});
+      }
+    }
+  } catch {}
+
+  // Remux existing vault files that may be MPEG-TS
+  try {
+    const db = require('@nexube/store').getDatabase();
+    const vaulted = db.prepare(
+      `SELECT vault_path FROM downloads WHERE status = 'completed' AND vault_path IS NOT NULL`
+    ).all();
+    for (const row of vaulted) {
+      const fullPath = path.join(getVaultDir(), row.vault_path);
+      if (fs.existsSync(fullPath)) {
+        remuxToMp4(fullPath).catch(() => {});
+      }
     }
   } catch {}
 
