@@ -31,13 +31,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const [downloader, setDownloader] = useState(null);
   const [checking, setChecking] = useState(true);
   const [usingBundled, setUsingBundled] = useState(false);
-  const [downloadPath, setDownloadPath] = useState(activeProfile?.downloadPath || '');
-  const [defaultDownloadPath, setDefaultDownloadPath] = useState('');
-  const [settingPath, setSettingPath] = useState(false);
-
-  useEffect(() => {
-    window.electron?.deskDownloads?.defaultPath().then(setDefaultDownloadPath);
-  }, []);
   const [selectedSource, setSelectedSource] = useState(sourceId || 'videasy');
   const [translationType, setTranslationType] = useState('sub');
   const [batchQueued, setBatchQueued] = useState(false);
@@ -148,22 +141,8 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
     }
   };
 
-  const pickDownloadFolder = async () => {
-    const folder = await window.electron?.deskDownloads?.pickFolder(downloadPath);
-    if (folder) {
-      setDownloadPath(folder);
-      await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
-      onProfileUpdated?.();
-      setSettingPath(false);
-    }
-  };
-
   const handleDownload = async () => {
     if (!downloader?.exists) return;
-    if (!downloadPath) {
-      setSettingPath(true);
-      return;
-    }
 
     setDownloading(true);
     setError(null);
@@ -183,7 +162,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
       episodeTitle: media.type === 'tv' ? episodeTitle : undefined,
       sourceId: selectedSource,
       binaryToken: usingBundled ? null : downloader.token,
-      downloadPath,
       translationType: selectedSource === 'allmanga' ? translationType : undefined,
     });
 
@@ -234,10 +212,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
 
   const handleBatchDownload = async (batchType) => {
     if (!downloader?.exists) return;
-    if (!downloadPath) {
-      setSettingPath(true);
-      return;
-    }
 
     let collectionId;
     let payload;
@@ -261,7 +235,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
         items: [currentItem, ...otherItems],
         sourceId: selectedSource,
         binaryToken: usingBundled ? null : downloader.token,
-        downloadPath,
         translationType: selectedSource === 'allmanga' ? translationType : undefined,
       };
     } else {
@@ -277,7 +250,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
         episodes: selectedEpData,
         sourceId: selectedSource,
         binaryToken: usingBundled ? null : downloader.token,
-        downloadPath,
         translationType: selectedSource === 'allmanga' ? translationType : undefined,
       };
     }
@@ -294,71 +266,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const activeDownload = downloadStatus?.id
     ? downloads.find((d) => d.id === downloadStatus.id)
     : null;
-
-  // ── No download path set ───────────────────────────────────────────────
-  if (!downloadPath || settingPath) {
-    return (
-      <div className="fixed inset-0 bg-overlay backdrop-blur-overlay z-50 flex items-center justify-center p-xl" onClick={handleClose}>
-        <div className="relative w-full max-w-md bg-surface rounded-xl overflow-hidden shadow-xl border border-border" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-lg py-md border-b border-border">
-            <div className="flex items-center gap-sm">
-              <FolderOpen className="w-5 h-5 text-accent" />
-              <h3 className="text-lg font-bold text-text-primary">Set Download Folder</h3>
-            </div>
-            <button onClick={handleClose} className="text-text-muted hover:text-text-primary transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="p-lg">
-            <p className="text-sm text-text-muted mb-lg">
-              {settingPath ? 'Choose where downloaded videos should be saved:' : (
-                <>
-                  <span className="text-danger font-semibold">No download folder set.</span>
-                  <br />
-                  Choose where to save downloaded videos:
-                </>
-              )}
-            </p>
-
-            <div className="flex gap-sm mb-lg">
-              <input
-                className="flex-1 px-sm py-sm bg-background border border-border rounded text-sm text-text-primary"
-                placeholder={defaultDownloadPath || '/home/you/Videos/Nexube'}
-                value={downloadPath}
-                onChange={(e) => setDownloadPath(e.target.value)}
-              />
-              <button
-                className="btn-secondary px-md py-sm text-sm"
-                onClick={pickDownloadFolder}
-              >
-                Browse
-              </button>
-            </div>
-
-            <div className="flex gap-sm">
-              <button
-                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!downloadPath.trim()}
-                onClick={async () => {
-                  await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: downloadPath.trim() });
-                  onProfileUpdated?.();
-                  setSettingPath(false);
-                }}
-              >
-                Confirm
-              </button>
-              {settingPath && (
-                <button className="btn-secondary" onClick={() => setSettingPath(false)}>
-                  Cancel
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // ── Main modal ─────────────────────────────────────────────────────────
   return (
@@ -611,13 +518,6 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
                 <span className="text-sm text-success font-medium">
                   {usingBundled ? 'Video Downloader ready (bundled)' : 'Video Downloader found'}
                 </span>
-              </div>
-              <div className="flex items-center gap-sm mb-md">
-                <span className="text-xs text-text-muted">Save to:</span>
-                <code className="text-xs text-text-muted truncate">{downloadPath}</code>
-                <button className="text-xs text-accent hover:underline" onClick={() => setSettingPath(true)}>
-                  Change
-                </button>
               </div>
             </div>
           )}

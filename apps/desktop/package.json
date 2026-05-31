@@ -27,7 +27,8 @@
     "lucide-react": "^1.16.0",
     "m3u8-parser": "^7.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",

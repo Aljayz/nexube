@@ -332,7 +332,6 @@ export function getProfiles(): Profile[] {
     avatarColor: row.avatar_color,
     avatar: row.avatar || null,
     accentColor: row.accent_color || null,
-    downloadPath: row.download_path || null,
     preferredSource: row.preferred_source || 'videasy',
     autoMarkThreshold: row.auto_mark_threshold != null ? row.auto_mark_threshold : 20,
   }));
@@ -352,13 +351,12 @@ export function getProfile(id: string): Profile | null {
     avatarColor: row.avatar_color,
     avatar: row.avatar || null,
     accentColor: row.accent_color || null,
-    downloadPath: row.download_path || null,
     preferredSource: row.preferred_source || 'videasy',
     autoMarkThreshold: row.auto_mark_threshold != null ? row.auto_mark_threshold : 20,
   };
 }
 
-export function createProfile(input: { name: string; isKids: boolean; pinHash?: string | null; isMaster?: boolean; password?: string | null; securityType?: 'pin' | 'password' | null; avatar?: string | null; accentColor?: string | null; downloadPath?: string | null; preferredSource?: string | null; autoMarkThreshold?: number | null }): Profile {
+export function createProfile(input: { name: string; isKids: boolean; pinHash?: string | null; isMaster?: boolean; password?: string | null; securityType?: 'pin' | 'password' | null; avatar?: string | null; accentColor?: string | null; preferredSource?: string | null; autoMarkThreshold?: number | null }): Profile {
   if (!input.isMaster) {
     const guardrail = checkProfileGuardrail(input.isKids);
     if (!guardrail.allowed) {
@@ -374,13 +372,12 @@ export function createProfile(input: { name: string; isKids: boolean; pinHash?: 
 
   const accentColor = input.accentColor || '#00E5FF';
 
-  const downloadPath = input.downloadPath || null;
   const preferredSource = input.preferredSource || 'videasy';
   const autoMarkThreshold = input.autoMarkThreshold != null ? input.autoMarkThreshold : 20;
 
   db!.prepare(
-    'INSERT OR REPLACE INTO profiles (id, name, is_kids, is_master, pin_hash, password_hash, security_type, avatar_color, avatar, accent_color, download_path, preferred_source, auto_mark_threshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, input.name, input.isKids ? 1 : 0, input.isMaster ? 1 : 0, input.pinHash || null, input.password || null, input.securityType || null, avatarColor, avatar, accentColor, downloadPath, preferredSource, autoMarkThreshold);
+    'INSERT OR REPLACE INTO profiles (id, name, is_kids, is_master, pin_hash, password_hash, security_type, avatar_color, avatar, accent_color, preferred_source, auto_mark_threshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, input.name, input.isKids ? 1 : 0, input.isMaster ? 1 : 0, input.pinHash || null, input.password || null, input.securityType || null, avatarColor, avatar, accentColor, preferredSource, autoMarkThreshold);
 
   return {
     id,
@@ -393,7 +390,6 @@ export function createProfile(input: { name: string; isKids: boolean; pinHash?: 
     avatarColor,
     avatar,
     accentColor,
-    downloadPath,
     preferredSource,
     autoMarkThreshold,
   };
@@ -426,10 +422,6 @@ export function updateProfile(id: string, updates: Partial<Profile>): void {
   if (updates.accentColor !== undefined) {
     fields.push('accent_color = ?');
     values.push(updates.accentColor);
-  }
-  if (updates.downloadPath !== undefined) {
-    fields.push('download_path = ?');
-    values.push(updates.downloadPath);
   }
   if (updates.preferredSource !== undefined) {
     fields.push('preferred_source = ?');

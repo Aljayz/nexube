@@ -91,7 +91,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true,
+      webSecurity: !process.env.VITE_DEV_SERVER_URL,
       webviewTag: true,
     },
     show: false,
@@ -268,18 +268,6 @@ app.whenReady().then(() => {
       const orphaned = db.prepare("SELECT id FROM downloads WHERE status = 'downloading'").all();
       for (const row of orphaned) {
         deleteDownload(row.id);
-      }
-    } catch {}
-
-    // Cleanup any stale playback vault files
-    try {
-      const vaultDir = path.join(app.getPath('userData'), 'vault');
-      if (fs.existsSync(vaultDir)) {
-        for (const entry of fs.readdirSync(vaultDir, { withFileTypes: true })) {
-          if (entry.isFile()) {
-            try { fs.unlinkSync(path.join(vaultDir, entry.name)); } catch {}
-          }
-        }
       }
     } catch {}
 

@@ -56,6 +56,10 @@ function getVaultDir() {
   return path.join(app.getPath('userData'), 'vault');
 }
 
+function getStagingDir() {
+  return path.join(app.getPath('userData'), 'staging');
+}
+
 function vaultFilename(downloadId, filePath) {
   const hash = crypto.createHash('md5').update(downloadId).digest('hex').slice(0, 16);
   const ext = filePath ? path.extname(filePath) : '.mp4';
@@ -68,7 +72,14 @@ function moveToVault(downloadId, sourcePath) {
   const name = vaultFilename(downloadId, sourcePath);
   const dest = path.join(vaultDir, name);
   if (fs.existsSync(dest)) fs.unlinkSync(dest);
-  fs.renameSync(sourcePath, dest);
+  try {
+    fs.renameSync(sourcePath, dest);
+  } catch (err) {
+    if (err.code === 'EXDEV') {
+      fs.copyFileSync(sourcePath, dest);
+      fs.unlinkSync(sourcePath);
+    } else throw err;
+  }
   return name;
 }
 
@@ -81,9 +92,10 @@ function vaultFileExists(downloadId, filePath) {
   return fs.existsSync(getVaultPath(downloadId, filePath));
 }
 
-function removeFromVault(downloadId, filePath) {
-  const vaultPath = getVaultPath(downloadId, filePath);
-  try { if (fs.existsSync(vaultPath)) fs.unlinkSync(vaultPath); } catch {}
+function removeFromVault(download) {
+  if (!download?.vault_path) return;
+  const fullPath = path.join(getVaultDir(), download.vault_path);
+  try { if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath); } catch {}
 }
 
 function cleanupPlaybackVault() {
@@ -122,7 +134,6 @@ function register(getMainWindowFn) {
     binaryToken,
     m3u8Url,
     name,
-    downloadPath,
     mediaId,
     mediaType,
     season,
@@ -186,7 +197,7 @@ function register(getMainWindowFn) {
 
   async function queueSingleDownload({
     profileId, mediaId, title, type, formatSpec, tmdbId,
-    season, episode, sourceId, binaryToken, downloadPath,
+    season, episode, sourceId, binaryToken,
     episodeTitle, translationType,
   }, batchId) {
     let resolvedBinaryPath = null;
@@ -203,10 +214,7 @@ function register(getMainWindowFn) {
       resolvedBinaryPath = resolveBinaryPath(bundledResult.token);
     }
 
-    const basePath = path.join(
-      downloadPath || path.join(require('os').homedir(), 'Downloads'),
-      'Nexube'
-    );
+    const basePath = path.join(getStagingDir(), 'Nexube');
     const sanitizedTitle = title
       .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
       .replace(/\s+/g, ' ')
@@ -617,7 +625,7 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:queue-batch', async (_, params) => {
     const {
       type, mediaId, title, tmdbId, season, collectionId, items,
-      sourceId, binaryToken, downloadPath, translationType, profileId, episodes,
+      sourceId, binaryToken, translationType, profileId, episodes,
     } = params;
     const { addBatch } = require('@nexube/store');
 
@@ -662,10 +670,7 @@ function register(getMainWindowFn) {
       mediaId, season, collectionId, total: episodeList.length,
     });
 
-    const basePath = path.join(
-      downloadPath || path.join(require('os').homedir(), 'Downloads'),
-      'Nexube'
-    );
+    const basePath = path.join(getStagingDir(), 'Nexube');
     let queued = 0;
     let skipped = 0;
 
@@ -799,7 +804,7 @@ function register(getMainWindowFn) {
       const download = getDownload(downloadId);
       if (download) {
         if (download.vault_path) {
-          removeFromVault(downloadId, download.file_path);
+          removeFromVault(download);
         } else {
           const safeName = download.type === 'tv'
             ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')}${download.episode_name ? ` - ${download.episode_name}` : ''}`
@@ -1182,6 +1187,7 @@ function register(getMainWindowFn) {
       const items = getDownloadsByBatch(batchId);
 
       for (const dl of items) {
+        if (dl.vault_path) removeFromVault(dl);
         if (dl.status === 'downloading' || dl.status === 'paused') {
           killDownload(dl.id);
           const safeName = dl.type === 'tv'
@@ -1216,7 +1222,7 @@ function register(getMainWindowFn) {
     }
   });
 
-  ipcMain.handle('desk-download:scan', async (_, { profileId, downloadPath: scanPath }) => {
+  ipcMain.handle('desk-download:scan', async (_, { profileId, scanPath }) => {
     try {
       const basePath = scanPath || path.join(require('os').homedir(), 'Downloads');
       const nexubeDir = path.join(basePath, 'Nexube');
@@ -1341,17 +1347,23 @@ function register(getMainWindowFn) {
   });
 
   ipcMain.handle('desk-download:default-path', () => {
-    return path.join(app.getPath('downloads'), 'Nexube');
+    return path.join(getStagingDir(), 'Nexube');
   });
 
-  ipcMain.handle('desk-download:show-in-folder', (_, filePath) => {
-    if (filePath && fs.existsSync(filePath)) {
-      shell.showItemInFolder(filePath);
+  ipcMain.handle('desk-download:show-in-folder', (_, downloadId) => {
+    const download = getDownload(downloadId);
+    if (!download) return;
+    const vaulted = download.vault_path;
+    if (vaulted) {
+      const vaultDir = getVaultDir();
+      if (fs.existsSync(vaultDir)) shell.openPath(vaultDir);
+    } else {
+      const target = download.file_path || download.download_path;
+      if (target && fs.existsSync(target)) shell.showItemInFolder(target);
     }
   });
 
   // ── Vault migration ────────────────────────────────────────────────────────
-  cleanupPlaybackVault();
   try {
     const db = require('@nexube/store').getDatabase();
     const legacy = db.prepare(
@@ -1359,10 +1371,20 @@ function register(getMainWindowFn) {
     ).all();
     for (const row of legacy) {
       if (!row.file_path || !fs.existsSync(row.file_path)) continue;
-      try {
-        const name = moveToVault(row.id, row.file_path);
-        updateDownload(row.id, { vaultPath: name, filePath: null });
-      } catch {}
+      const name = moveToVault(row.id, row.file_path);
+      updateDownload(row.id, { vaultPath: name, filePath: null });
+    }
+  } catch {}
+
+  // Cleanup stale staging files
+  try {
+    const stagingDir = getStagingDir();
+    if (fs.existsSync(stagingDir)) {
+      for (const entry of fs.readdirSync(stagingDir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          try { fs.rmSync(path.join(stagingDir, entry.name), { recursive: true, force: true }); } catch {}
+        }
+      }
     }
   } catch {}
 

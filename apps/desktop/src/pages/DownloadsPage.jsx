@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv, FileText } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import { useDownloads } from '../hooks/useDownloads';
@@ -46,22 +47,22 @@ function DownloadsPage({ activeProfile }) {
     }
   }, [downloads]);
 
-  const handlePlay = async (download) => {
+  const handlePlay = useCallback(async (download) => {
     const result = await playDownload(download.id);
     if (result?.success && result.filePath) {
       setPlayingDownload({ filePath: result.filePath, title: download.title });
     }
-  };
+  }, [playDownload]);
 
-  const handleDelete = (id) => {
+  const handleDelete = useCallback((id) => {
     setConfirmDelete({ id });
-  };
+  }, []);
 
-  const handleDeleteAll = (ids) => {
+  const handleDeleteAll = useCallback((ids) => {
     setConfirmDelete({ ids });
-  };
+  }, []);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!confirmDelete) return;
     if (confirmDelete.ids) {
       for (const id of confirmDelete.ids) {
@@ -71,32 +72,43 @@ function DownloadsPage({ activeProfile }) {
       await deleteDownload(confirmDelete.id);
     }
     setConfirmDelete(null);
-  };
+  }, [confirmDelete, deleteDownload]);
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = useCallback(() => {
     setConfirmDelete(null);
-  };
+  }, []);
 
-  const handleOpenFolder = async (download) => {
-    const target = download.file_path || download.download_path;
-    if (target) {
-      await window.electron?.deskDownloads?.showInFolder(target);
-    }
-  };
+  const handleOpenFolder = useCallback(async (download) => {
+    await window.electron?.deskDownloads?.showInFolder(download.id);
+  }, []);
 
-  const handleStop = async (id) => {
+  const handleExport = useCallback(async (downloadId) => {
+    const result = await window.electron?.deskDownloads?.exportSingle(downloadId);
+    if (result?.canceled) return;
+    if (result?.success) toast.success('File exported successfully');
+    else toast.error(result?.error || 'Export failed');
+  }, []);
+
+  const handleBulkExport = useCallback(async (downloadIds) => {
+    const result = await window.electron?.deskDownloads?.exportBulk({ downloadIds });
+    if (result?.canceled) return;
+    if (result?.success) toast.success(`${result.exported} file(s) exported successfully`);
+    else toast.error(result?.error || 'Export failed');
+  }, []);
+
+  const handleStop = useCallback(async (id) => {
     await cancelDownload(id);
-  };
+  }, [cancelDownload]);
 
-  const handlePause = async (id) => {
+  const handlePause = useCallback(async (id) => {
     await pauseDownload(id);
-  };
+  }, [pauseDownload]);
 
-  const handleResume = async (id) => {
+  const handleResume = useCallback(async (id) => {
     await resumeDownload(id);
-  };
+  }, [resumeDownload]);
 
-  const handleRetry = async (download) => {
+  const handleRetry = useCallback(async (download) => {
     const result = await startDownload({
       mediaId: download.media_id,
       title: download.title,
@@ -113,23 +125,24 @@ function DownloadsPage({ activeProfile }) {
     if (!result?.success) {
       console.error('Retry failed:', result?.error);
     }
-  };
+  }, [startDownload]);
 
-  const handleStopAll = async () => {
+  const handleStopAll = useCallback(async () => {
     await stopAllDownloads();
-  };
+  }, [stopAllDownloads]);
 
-  const handleScan = async () => {
+  const handleScan = useCallback(async () => {
+    const folder = await window.electron?.deskDownloads?.pickFolder('');
+    if (!folder) return;
     setScanning(true);
     setScanResult(null);
-    const downloadPath = activeProfile?.downloadPath || '';
-    const result = await window.electron?.deskDownloads?.scan({ profileId, downloadPath });
+    const result = await window.electron?.deskDownloads?.scan({ profileId, scanPath: folder });
     if (result) {
       setScanResult(result);
       if (result.imported > 0) refreshDownloads();
     }
     setScanning(false);
-  };
+  }, [profileId, refreshDownloads]);
 
 
 
@@ -678,6 +691,12 @@ function DownloadsPage({ activeProfile }) {
                           <Play className="w-5 h-5 text-background ml-0.5" />
                         </div>
                         <div
+                          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleExport(card.items[0].id); }}
+                        >
+                          <Download className="w-4 h-4 text-background" />
+                        </div>
+                        <div
                           className="w-10 h-10 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
                           onClick={(e) => { e.stopPropagation(); handleDelete(card.items[0].id); }}
                         >
@@ -718,9 +737,15 @@ function DownloadsPage({ activeProfile }) {
                           <Tv className="w-8 h-8 text-text-muted" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center">
                           <Play className="w-5 h-5 text-background ml-0.5" />
+                        </div>
+                        <div
+                          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleBulkExport(card.items.map((d) => d.id)); }}
+                        >
+                          <Download className="w-4 h-4 text-background" />
                         </div>
                       </div>
                     </div>

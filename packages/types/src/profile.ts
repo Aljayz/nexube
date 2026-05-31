@@ -9,7 +9,6 @@ export interface Profile {
   avatarColor?: string;
   avatar?: string | null;
   accentColor?: string | null;
-  downloadPath?: string | null;
   preferredSource?: string;
   autoMarkThreshold?: number;
 }
@@ -23,7 +22,6 @@ export interface ProfileCreateInput {
   securityType?: 'pin' | 'password' | null;
   avatar?: string | null;
   accentColor?: string | null;
-  downloadPath?: string | null;
   preferredSource?: string | null;
   autoMarkThreshold?: number | null;
 }

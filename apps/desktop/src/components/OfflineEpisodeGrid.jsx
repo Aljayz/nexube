@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
-import { Play, Trash2 } from 'lucide-react';
+import { Play, Download, Trash2 } from 'lucide-react';
 
-export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, onRequestDelete }) {
+export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, onExport, onRequestDelete }) {
   const seasons = [...new Set(items.map((d) => d.season).filter((s) => s != null))].sort((a, b) => a - b);
 
   return (
@@ -30,6 +30,12 @@ export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, on
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                         <div className="w-8 h-8 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
                           <Play className="w-4 h-4 text-background ml-0.5" />
+                        </div>
+                        <div
+                          className="w-8 h-8 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent-hover transition-colors"
+                          onClick={(e) => { e.stopPropagation(); onExport?.(ep.id); }}
+                        >
+                          <Download className="w-4 h-4 text-background" />
                         </div>
                         <div
                           className="w-8 h-8 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"

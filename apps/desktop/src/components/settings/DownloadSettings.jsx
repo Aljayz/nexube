@@ -2,17 +2,11 @@ import { useState, useEffect } from 'react';
 import { Download, FolderOpen, HardDrive, RefreshCw, Check, AlertCircle, Search, X } from 'lucide-react';
 
 export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
-  const [downloadPath, setDownloadPath] = useState(activeProfile?.downloadPath || '');
   const [binaryFolder, setBinaryFolder] = useState(() => {
     try { return localStorage.getItem('nexube-downloader-folder') || ''; } catch { return ''; }
   });
   const [binaryStatus, setBinaryStatus] = useState(null);
   const [checkingBinary, setCheckingBinary] = useState(false);
-  const [defaultDownloadPath, setDefaultDownloadPath] = useState('');
-
-  useEffect(() => {
-    window.electron?.deskDownloads?.defaultPath().then(setDefaultDownloadPath);
-  }, []);
   const [bundledStatus, setBundledStatus] = useState(null);
   const [mode, setMode] = useState(() => {
     try { return localStorage.getItem('nexube-downloader-mode') || 'bundled'; } catch { return 'bundled'; }
@@ -38,20 +32,6 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
       handleCheckBundled();
     }
   }, []);
-
-  const handlePickDownloadPath = async () => {
-    const folder = await window.electron?.deskDownloads?.pickFolder(downloadPath);
-    if (folder) {
-      setDownloadPath(folder);
-      await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: folder });
-      if (onProfileUpdated) onProfileUpdated();
-    }
-  };
-
-  const handleSaveDownloadPath = async (path) => {
-    await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: path });
-    if (onProfileUpdated) onProfileUpdated();
-  };
 
   const handlePickBinary = async () => {
     const folder = await window.electron?.deskDownloads?.pickFolder(binaryFolder);
@@ -88,9 +68,11 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
   const [scanResult, setScanResult] = useState(null);
 
   const handleScan = async () => {
+    const folder = await window.electron?.deskDownloads?.pickFolder('');
+    if (!folder) return;
     setScanning(true);
     setScanResult(null);
-    const result = await window.electron?.deskDownloads?.scan({ profileId: activeProfile?.id, downloadPath });
+    const result = await window.electron?.deskDownloads?.scan({ profileId: activeProfile?.id, scanPath: folder });
     if (result) setScanResult(result);
     setScanning(false);
   };
@@ -105,44 +87,6 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
     <div className="space-y-lg">
       <div className="bg-surface rounded-card p-lg border border-border">
         <h2 className="text-lg font-bold text-text-primary mb-md flex items-center gap-sm">
-          <HardDrive className="w-5 h-5" />
-          Download Path
-        </h2>
-        <p className="text-sm text-text-muted mb-md">
-          Choose where downloaded files are saved. A <code className="px-xs py-2xs bg-background rounded text-xs">Nexube</code> folder will be created inside with <code className="px-xs py-2xs bg-background rounded text-xs">Movies</code> and <code className="px-xs py-2xs bg-background rounded text-xs">TV</code> subdirectories.
-        </p>
-        <div className="flex items-center gap-sm mb-sm">
-          <input
-            className="input-field flex-1 font-mono"
-            placeholder={defaultDownloadPath || 'Type or browse for a download path'}
-            value={downloadPath}
-            onChange={(e) => setDownloadPath(e.target.value)}
-            onBlur={(e) => handleSaveDownloadPath(e.target.value)}
-          />
-          <button
-            onClick={handlePickDownloadPath}
-            className="btn-primary flex items-center gap-1.5 text-sm"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Browse
-          </button>
-          <button
-            onClick={async () => {
-              setDownloadPath('');
-              await window.electron?.profiles?.updateProfile(activeProfile.id, { downloadPath: '' });
-              if (onProfileUpdated) onProfileUpdated();
-            }}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
-            disabled={!downloadPath}
-          >
-            <X className="w-4 h-4" />
-            Remove
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-surface rounded-card p-lg border border-border">
-        <h2 className="text-lg font-bold text-text-primary mb-md flex items-center gap-sm">
           <Download className="w-5 h-5" />
           Downloader Binary
         </h2>
@@ -153,15 +97,15 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
         <div className="flex items-center justify-between mb-md bg-background rounded-lg p-md">
           <div className="flex items-center gap-md">
             <Search className="w-4 h-4 text-text-muted" />
-            <span className="text-sm text-text-muted">Scan download folder for existing videos</span>
+            <span className="text-sm text-text-muted">Scan a folder for existing video files to import</span>
           </div>
           <button
             onClick={handleScan}
             disabled={scanning}
             className="btn-primary flex items-center gap-1.5 text-sm disabled:opacity-50"
           >
-            {scanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            Scan
+            {scanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
+            Browse & Scan
           </button>
         </div>
 
@@ -174,7 +118,7 @@ export default function DownloadSettings({ activeProfile, onProfileUpdated }) {
                   ? `Found ${scanResult.found} file(s), imported ${scanResult.imported} new`
                   : scanResult.found > 0
                     ? `${scanResult.found} file(s) found, all already tracked`
-                    : 'No video files found in download path'}
+                    : 'No video files found in selected folder'}
               </span>
             </div>
             <button onClick={() => setScanResult(null)} className="text-text-muted hover:text-text-primary">

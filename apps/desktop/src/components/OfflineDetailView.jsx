@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Play, Film, Tv, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight, Play, Download, Film, Tv, Trash2 } from 'lucide-react';
 import LocalPlayer from './LocalPlayer';
 import OfflineEpisodeGrid from './OfflineEpisodeGrid';
 
@@ -46,6 +47,21 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
   const handleClosePlayer = useCallback(() => {
     setCurrentEpisode(null);
   }, []);
+
+  const handleExport = useCallback(async (epId) => {
+    const result = await window.electron?.deskDownloads?.exportSingle(epId);
+    if (result?.canceled) return;
+    if (result?.success) toast.success('File exported successfully');
+    else toast.error(result?.error || 'Export failed');
+  }, []);
+
+  const handleExportAll = useCallback(async () => {
+    const ids = episodes.map((e) => e.id);
+    const result = await window.electron?.deskDownloads?.exportBulk({ downloadIds: ids });
+    if (result?.canceled) return;
+    if (result?.success) toast.success(`${result.exported} file(s) exported successfully`);
+    else toast.error(result?.error || 'Export failed');
+  }, [episodes]);
 
   const isTv = type === 'tv' || episodes.some((d) => d.season != null);
   const singleFile = episodes.length === 1 && !isTv;
@@ -94,13 +110,22 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
                 )}
               </div>
               {isTv && episodes.length > 1 && (
-                <button
-                  onClick={() => onRequestDeleteAll?.(episodes.map((e) => e.id))}
-                  className="mt-md flex items-center gap-sm px-lg py-sm bg-danger hover:bg-danger/80 text-background font-semibold rounded-button transition-colors text-sm"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete All
-                </button>
+                <div className="mt-md flex items-center gap-sm">
+                  <button
+                    onClick={() => onRequestDeleteAll?.(episodes.map((e) => e.id))}
+                    className="flex items-center gap-sm px-lg py-sm bg-danger hover:bg-danger/80 text-background font-semibold rounded-button transition-colors text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete All
+                  </button>
+                  <button
+                    onClick={handleExportAll}
+                    className="flex items-center gap-sm px-lg py-sm bg-accent hover:bg-accent-hover text-background font-semibold rounded-button transition-colors text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export All
+                  </button>
+                </div>
               )}
               {singleFile && (
                 <div className="mt-md flex items-center gap-sm">
@@ -110,6 +135,13 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
                   >
                     <Play className="w-4 h-4" />
                     Play
+                  </button>
+                  <button
+                    onClick={() => handleExport(episodes[0].id)}
+                    className="flex items-center gap-sm px-lg py-sm bg-accent hover:bg-accent-hover text-background font-semibold rounded-button transition-colors text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
                   </button>
                   <button
                     onClick={() => onRequestDelete?.(episodes[0].id)}
@@ -130,6 +162,7 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
               items={episodes}
               currentEpisodeId={currentEpisode?.id}
               onPlay={handlePlay}
+              onExport={handleExport}
               onRequestDelete={onRequestDelete}
             />
           )}

@@ -124,8 +124,11 @@ contextBridge.exposeInMainWorld('electron', {
     pickFolder: (defaultPath) => ipcRenderer.invoke('desk-download:pick-folder', { defaultPath }),
     defaultPath: () => ipcRenderer.invoke('desk-download:default-path'),
     scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
-    showInFolder: (filePath) => ipcRenderer.invoke('desk-download:show-in-folder', filePath),
+    showInFolder: (downloadId) => ipcRenderer.invoke('desk-download:show-in-folder', downloadId),
     readLog: (logPath) => ipcRenderer.invoke('desk-download:read-log', logPath),
+    exportSingle: (id) => ipcRenderer.invoke('desk-download:export-single', id),
+    exportBulk: (params) => ipcRenderer.invoke('desk-download:export-bulk', params),
+    getVaultInfo: (id) => ipcRenderer.invoke('desk-download:get-vault-info', id),
      onProgress: (callback) => {
        const handler = (_, data) => callback(data);
        ipcRenderer.on('desk-download:progress', handler);
