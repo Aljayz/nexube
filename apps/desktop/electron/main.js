@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { getDatabase, closeDatabase } = require('@nexube/store');
@@ -97,7 +97,7 @@ function createWindow() {
     show: false,
   });
 
-  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: vault:; connect-src 'self' https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
   const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
@@ -236,6 +236,18 @@ app.commandLine.appendSwitch('max-old-space-size', '256');
 app.commandLine.appendSwitch('renderer-process-limit', '3');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,InsecureCSPWarning');
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'vault',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+]);
+
 app.whenReady().then(() => {
   getDatabase(path.join(app.getPath('userData'), 'nexube.db'));
   blockStats.loadBlockStats();
@@ -291,6 +303,11 @@ app.whenReady().then(() => {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  protocol.handle('vault', (request) => {
+    const fileUrl = 'file' + request.url.slice('vault'.length);
+    return net.fetch(fileUrl);
   });
 
   createWindow();

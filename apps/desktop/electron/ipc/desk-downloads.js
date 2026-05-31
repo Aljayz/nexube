@@ -847,10 +847,12 @@ function register(getMainWindowFn) {
 
       const vaultP = download.vault_path ? path.join(getVaultDir(), download.vault_path) : null;
       if (vaultP && fs.existsSync(vaultP)) {
-        return { success: true, filePath: pathToFileURL(vaultP).toString() };
+        const fileUrl = pathToFileURL(vaultP).toString();
+        return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
       }
       if (download.file_path && fs.existsSync(download.file_path)) {
-        return { success: true, filePath: pathToFileURL(download.file_path).toString() };
+        const fileUrl = pathToFileURL(download.file_path).toString();
+        return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
       }
       return { success: false, error: 'File not found' };
     } catch (err) {
