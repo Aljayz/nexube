@@ -1,7 +1,7 @@
 const { ipcMain } = require('electron');
-const Store = require('../lib/store');
+const { getStore } = require('./storage');
 
-const store = new Store({ name: 'nexube-settings' });
+const store = getStore();
 
 const _tmdbCache = new Map();
 const TMDB_CACHE_TTL = 5 * 60 * 1000;

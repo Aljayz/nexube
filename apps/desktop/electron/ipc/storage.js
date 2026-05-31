@@ -46,4 +46,4 @@ function clearCache() {
   _store = null;
 }
 
-module.exports = { register, clearCache };
+module.exports = { register, clearCache, getStore };
