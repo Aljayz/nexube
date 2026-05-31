@@ -1,8 +1,20 @@
-const { app, BrowserWindow, session, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, session, ipcMain, shell, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const { getDatabase, closeDatabase } = require('@nexube/store');
-const APP_VERSION = require('../package.json').version;
+
+const MIME_TYPES = {
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mkv': 'video/x-matroska',
+  '.avi': 'video/x-msvideo',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
+  '.ts': 'video/mp2t',
+  '.ogg': 'video/ogg',
+  '.ogv': 'video/ogg',
+};
 
 const BLOCKED_HOSTS = [
   '*://www.google-analytics.com/*',
@@ -305,9 +317,46 @@ app.whenReady().then(() => {
     }
   });
 
-  protocol.handle('vault', (request) => {
-    const fileUrl = 'file' + request.url.slice('vault'.length);
-    return net.fetch(fileUrl);
+  protocol.handle('vault', async (request) => {
+    try {
+      let filePath = request.url.slice('vault://'.length);
+      if (!filePath.startsWith('/')) {
+        filePath = '/' + filePath;
+      }
+      filePath = decodeURIComponent(filePath);
+      if (!fs.existsSync(filePath)) {
+        return new Response('Not found', { status: 404 });
+      }
+      const stat = fs.statSync(filePath);
+      const mimeType = MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+      const range = request.headers.get('Range');
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const stream = fs.createReadStream(filePath, { start, end });
+        return new Response(Readable.toWeb(stream), {
+          status: 206,
+          headers: {
+            'Content-Type': mimeType,
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+            'Content-Length': (end - start + 1).toString(),
+            'Accept-Ranges': 'bytes',
+          },
+        });
+      }
+      const stream = fs.createReadStream(filePath);
+      return new Response(Readable.toWeb(stream), {
+        status: 200,
+        headers: {
+          'Content-Type': mimeType,
+          'Content-Length': stat.size.toString(),
+          'Accept-Ranges': 'bytes',
+        },
+      });
+    } catch (err) {
+      return new Response(err.message, { status: 500 });
+    }
   });
 
   createWindow();
