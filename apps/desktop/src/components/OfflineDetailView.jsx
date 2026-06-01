@@ -26,10 +26,15 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
   const handlePlay = useCallback(async (ep) => {
     try {
       const result = await window.electron?.deskDownloads?.play(ep.id);
+      console.log('[OfflineDetailView] play result:', result);
       if (result?.success) {
-        setCurrentEpisode({ ...ep, filePath: result.filePath });
+        setCurrentEpisode({ ...ep, filePath: result.filePath, subtitles: result.subtitles });
+      } else {
+        console.warn('[OfflineDetailView] play failed:', result?.error);
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[OfflineDetailView] play error:', err);
+    }
   }, []);
 
   const handlePrev = useCallback(() => {
@@ -196,6 +201,7 @@ export default function OfflineDetailView({ title, type, posterPath, tmdbId, ite
             title={`${title}${currentEpisode.season != null ? ` - S${currentEpisode.season}E${currentEpisode.episode}` : ''}`}
             onClose={handleClosePlayer}
             onVideoEnded={handleAutoAdvance}
+            subtitles={currentEpisode.subtitles}
           />
         </div>
       )}

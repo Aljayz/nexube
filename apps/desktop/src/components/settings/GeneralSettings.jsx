@@ -1,5 +1,26 @@
 import { useState } from 'react';
-import { Check, Eye, EyeOff, Lock } from 'lucide-react';
+import { Check, Eye, EyeOff, Lock, ExternalLink, Subtitles } from 'lucide-react';
+
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'pl', label: 'Polish' },
+  { code: 'sv', label: 'Swedish' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'vi', label: 'Vietnamese' },
+  { code: 'th', label: 'Thai' },
+  { code: 'id', label: 'Indonesian' },
+];
 
 export default function GeneralSettings({
   apiKey,
@@ -8,6 +29,10 @@ export default function GeneralSettings({
   setKidsFilterCountry,
   onSaveKidsCountry,
   activeProfile,
+  wyzieApiKey,
+  setWyzieApiKey,
+  subtitleLanguages,
+  setSubtitleLanguages,
 }) {
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
@@ -17,6 +42,9 @@ export default function GeneralSettings({
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const [saveStatus, setSaveStatus] = useState({});
+  const [wyzieKeySaved, setWyzieKeySaved] = useState(false);
+  const [wyzieRedeeming, setWyzieRedeeming] = useState(false);
+  const [wyzieError, setWyzieError] = useState('');
 
   const handleSaveApiKey = async () => {
     setApiKeyLoading(true);
@@ -90,6 +118,59 @@ export default function GeneralSettings({
       setTimeout(() => setSaveStatus((prev) => ({ ...prev, kidsCountry: null })), 2000);
     } catch (err) {
       setSaveStatus((prev) => ({ ...prev, kidsCountry: 'error' }));
+    }
+  };
+
+  const handleSaveWyzieKey = async () => {
+    try {
+      if (!wyzieApiKey.trim()) throw new Error('API key cannot be empty');
+      await window.electron?.storage?.set('wyzieApiKey', wyzieApiKey.trim());
+      setWyzieKeySaved(true);
+      setTimeout(() => setWyzieKeySaved(false), 3000);
+    } catch (err) {
+      setSaveStatus((prev) => ({ ...prev, wyzieKey: err.message }));
+      setTimeout(() => setSaveStatus((prev) => ({ ...prev, wyzieKey: null })), 3000);
+    }
+  };
+
+  const handleWyzieRedeem = async () => {
+    if (!window.electron?.wyzie) return;
+    setWyzieRedeeming(true);
+    setWyzieError('');
+    try {
+      const res = await window.electron.wyzie.openRedeem();
+      if (res.cancelled) {
+        setWyzieRedeeming(false);
+        return;
+      }
+      if (res.ok && res.key) {
+        setWyzieApiKey(res.key);
+        await window.electron.storage.set('wyzieApiKey', res.key);
+        setWyzieKeySaved(true);
+        setTimeout(() => setWyzieKeySaved(false), 3000);
+      } else {
+        setWyzieError('Could not extract key automatically. Try entering it manually.');
+      }
+    } catch (e) {
+      setWyzieError(e.message);
+    }
+    setWyzieRedeeming(false);
+  };
+
+  const handleToggleLanguage = (code) => {
+    setSubtitleLanguages((prev) =>
+      prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code]
+    );
+  };
+
+  const handleSaveLanguages = async () => {
+    try {
+      if (subtitleLanguages.length === 0) throw new Error('Select at least one language');
+      await window.electron?.storage?.set('subtitleLanguages', subtitleLanguages);
+      setSaveStatus((prev) => ({ ...prev, subtitleLangs: 'saved' }));
+      setTimeout(() => setSaveStatus((prev) => ({ ...prev, subtitleLangs: null })), 2000);
+    } catch (err) {
+      setSaveStatus((prev) => ({ ...prev, subtitleLangs: 'error' }));
     }
   };
 
@@ -167,6 +248,89 @@ export default function GeneralSettings({
             </button>
           </div>
         )}
+      </div>
+
+      <div className="bg-surface rounded-card p-lg border border-border">
+        <div className="flex items-center gap-sm mb-md">
+          <Subtitles className="w-5 h-5 text-accent" />
+          <h2 className="text-lg font-bold text-text-primary">Wyzie Subtitles</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-md">
+          Your API key is stored locally and used to fetch subtitles for downloaded content.
+        </p>
+        {saveStatus.wyzieKey && (
+          <p className="text-danger text-sm mb-md">{saveStatus.wyzieKey}</p>
+        )}
+        <div className="flex gap-md mb-md">
+          <input
+            type="password"
+            value={wyzieApiKey}
+            onChange={(e) => {
+              setWyzieApiKey(e.target.value);
+              setWyzieKeySaved(false);
+            }}
+            placeholder="Enter your Wyzie API key"
+            className="input-field flex-1"
+          />
+          <button
+            onClick={handleSaveWyzieKey}
+            className="btn-primary disabled:opacity-50"
+          >
+            {wyzieKeySaved ? (
+              <span className="flex items-center gap-sm">
+                <Check className="w-4 h-4" /> Saved
+              </span>
+            ) : 'Save'}
+          </button>
+        </div>
+        {wyzieRedeeming ? (
+          <span className="text-sm text-text-muted flex items-center gap-xs">
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Complete the captcha in the popup window…
+          </span>
+        ) : !wyzieApiKey.trim() ? (
+          <button
+            onClick={handleWyzieRedeem}
+            className="text-accent text-sm flex items-center gap-xs hover:underline"
+          >
+            <ExternalLink className="w-3 h-3" /> Get a free API key
+          </button>
+        ) : null}
+        {wyzieError && (
+          <p className="text-danger text-sm mt-sm">{wyzieError}</p>
+        )}
+
+        <hr className="border-border my-md" />
+
+        <h3 className="text-md font-semibold text-text-primary mb-sm">Subtitle Languages</h3>
+        <p className="text-sm text-text-muted mb-md">
+          Select the languages you want to download subtitles for.
+        </p>
+        <div className="flex flex-wrap gap-sm mb-md">
+          {LANGUAGE_OPTIONS.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => handleToggleLanguage(lang.code)}
+              className={`px-sm py-xs rounded-md text-sm border transition-colors ${
+                subtitleLanguages.includes(lang.code)
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-surface text-text-muted border-border hover:border-accent'
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
+        </div>
+        {saveStatus.subtitleLangs === 'error' && (
+          <p className="text-danger text-sm mb-md">Select at least one language.</p>
+        )}
+        <button onClick={handleSaveLanguages} className="btn-primary">
+          {saveStatus.subtitleLangs === 'saved' ? (
+            <span className="flex items-center gap-sm">
+              <Check className="w-4 h-4" /> Saved
+            </span>
+          ) : 'Save Languages'}
+        </button>
       </div>
 
       <div className="bg-surface rounded-card p-lg border border-border">

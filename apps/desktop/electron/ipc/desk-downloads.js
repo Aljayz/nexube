@@ -13,6 +13,8 @@ const {
 } = require('@nexube/store');
 const { captureM3u8Url } = require('../services/hls-capture');
 const { resolveAllmanga } = require('../ipc/allmanga');
+const { searchSubtitles, downloadAndSaveSubtitles } = require('../services/desk-subtitles');
+const { getStore } = require('./storage');
 const {
   checkDownloader,
   checkBundledAndRegister,
@@ -33,6 +35,16 @@ const {
 
 const downloadsStore = new Map();
 const _remuxingDownloads = new Set();
+
+const LANGUAGE_NAMES = {
+  en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+  pt: 'Portuguese', 'pt-BR': 'Brazilian Portuguese', ru: 'Russian', ja: 'Japanese',
+  ko: 'Korean', zh: 'Chinese', ar: 'Arabic', nl: 'Dutch',
+  pl: 'Polish', sv: 'Swedish', da: 'Danish', fi: 'Finnish', nb: 'Norwegian',
+  tr: 'Turkish', cs: 'Czech', hu: 'Hungarian', ro: 'Romanian', vi: 'Vietnamese',
+  th: 'Thai', id: 'Indonesian',
+};
+function getLanguageName(code) { return LANGUAGE_NAMES[code] || code; }
 
 function diag(...args) {
   const msg = '[remux-diag] ' + args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : a).join(' ');
@@ -75,37 +87,65 @@ async function completeWithRemux(downloadId, vaultPath, update) {
   try {
     const download = getDownload(downloadId);
     if (!download) throw new Error('Download not found');
-    const remuxPath = getRemuxPath(download);
-    diag('completeWithRemux: remuxPath resolved', remuxPath);
-    diag('completeWithRemux: calling remuxToFile');
-    const ok = await remuxToFile(vaultPath, remuxPath);
-    diag('completeWithRemux: remuxToFile returned', ok);
-    if (ok) {
-      try { fs.unlinkSync(vaultPath); } catch {}
-      updateDownload(downloadId, { remuxPath, vaultPath: null, filePath: null });
-      diag('completeWithRemux: success, updated DB');
-      const mw = getMainWindow();
-      if (mw && !mw.isDestroyed()) {
-        mw.webContents.send('desk-download:progress', {
-          ...update,
-          status: 'completed',
-          filePath: null,
-          remuxPath,
-        });
+    const vaultDir = getVaultDir();
+    const vaultName = path.basename(vaultPath);
+
+    // Check if remux is needed — skip temp file if already proper MP4
+    const needsRemux = await isMpegTs(vaultPath);
+    diag('completeWithRemux: isMpegTs =', needsRemux);
+
+    if (needsRemux) {
+      const remuxTmpPath = path.join(vaultDir, `.${vaultName}.remux.tmp`);
+      diag('completeWithRemux: calling remuxToFile');
+      const ok = await remuxToFile(vaultPath, remuxTmpPath);
+      diag('completeWithRemux: remuxToFile returned', ok);
+      if (ok) {
+        try { fs.unlinkSync(vaultPath); } catch {}
+        fs.renameSync(remuxTmpPath, vaultPath);
+      } else {
+        diag('completeWithRemux: remuxToFile failed, keeping original');
+        try { if (fs.existsSync(remuxTmpPath)) fs.unlinkSync(remuxTmpPath); } catch {}
       }
     } else {
-      diag('completeWithRemux: remuxToFile returned false, keeping vault fallback');
-      const vaultName = path.basename(vaultPath);
-      updateDownload(downloadId, { vaultPath: vaultName, remuxPath: null, filePath: null });
-      const mw = getMainWindow();
-      if (mw && !mw.isDestroyed()) {
-        mw.webContents.send('desk-download:progress', {
-          ...update,
-          status: 'completed',
-          filePath: null,
-          vaultPath: vaultName,
+      diag('completeWithRemux: already proper format, no remux needed');
+    }
+
+    updateDownload(downloadId, { vaultPath: vaultName, remuxPath: null, filePath: null });
+    diag('completeWithRemux: success, updated DB');
+
+    const store = getStore();
+    const wyzieApiKey = store.get('wyzieApiKey');
+    const subtitleLanguages = store.get('subtitleLanguages') || ['en'];
+    if (wyzieApiKey && download.tmdb_id) {
+      try {
+        const subtitles = await searchSubtitles({
+          tmdbId: download.tmdb_id,
+          type: download.type,
+          season: download.season,
+          episode: download.episode,
+          languages: subtitleLanguages,
+          apiKey: wyzieApiKey,
         });
+        if (subtitles.length > 0) {
+          const hashPrefix = vaultName.replace(path.extname(vaultName), '');
+          const saved = await downloadAndSaveSubtitles(subtitles, vaultDir, hashPrefix);
+          if (saved.length > 0) {
+            diag('completeWithRemux: subtitles saved', saved.map(s => s.file));
+          }
+        }
+      } catch (subErr) {
+        console.warn('[subtitles] error during subtitle download:', subErr.message);
       }
+    }
+
+    const mw = getMainWindow();
+    if (mw && !mw.isDestroyed()) {
+      mw.webContents.send('desk-download:progress', {
+        ...update,
+        status: 'completed',
+        filePath: null,
+        vaultPath: vaultName,
+      });
     }
   } catch (e) {
     diag('completeWithRemux: failed', e.message);
@@ -139,44 +179,14 @@ function getVaultDir() {
   return path.join(app.getPath('userData'), 'vault');
 }
 
-function getRemuxDir() {
-  return path.join(app.getPath('userData'), 'remux');
-}
-
-function getRemuxPath(download) {
-  const title = (download.title || 'Unknown').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim() || 'Unknown';
-  if (download.type === 'tv') {
-    const s = String(download.season || 1).padStart(2, '0');
-    const e = String(download.episode || 1).padStart(2, '0');
-    const name = `${title} - S${s}E${e}.mp4`;
-    return path.join(getRemuxDir(), 'TV', title, `Season ${s}`, name);
-  }
-  return path.join(getRemuxDir(), 'Movie', title, `${title}.mp4`);
-}
-
-async function doRemuxMigration(downloadId, vaultPath) {
-  try {
-    const download = getDownload(downloadId);
-    if (!download) return;
-    const destPath = getRemuxPath(download);
-    const ok = await remuxToFile(vaultPath, destPath);
-    if (ok) {
-      try { fs.unlinkSync(vaultPath); } catch {}
-      updateDownload(downloadId, { remuxPath: destPath, vaultPath: null });
-    }
-  } catch (e) {
-    console.warn('[migration] remux failed for', downloadId, e.message);
-  }
-}
-
-function getStagingDir() {
-  return path.join(app.getPath('userData'), 'staging');
-}
-
 function vaultFilename(downloadId, filePath) {
   const hash = crypto.createHash('md5').update(downloadId).digest('hex').slice(0, 16);
   const ext = filePath ? path.extname(filePath) : '.mp4';
   return `${hash}${ext}`;
+}
+
+function getStagingDir() {
+  return path.join(app.getPath('userData'), 'staging');
 }
 
 function moveToVault(downloadId, sourcePath) {
@@ -223,11 +233,11 @@ function cleanupPlaybackVault() {
 
 // ── Export helpers ────────────────────────────────────────────────────────────
 function getDownloadFilePath(download) {
-  if (download.remux_path && fs.existsSync(download.remux_path)) return download.remux_path;
   if (download.vault_path) {
     const vaultP = path.join(getVaultDir(), download.vault_path);
     if (fs.existsSync(vaultP)) return vaultP;
   }
+  if (download.remux_path && fs.existsSync(download.remux_path)) return download.remux_path;
   if (download.file_path && fs.existsSync(download.file_path)) return download.file_path;
   return null;
 }
@@ -972,21 +982,81 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:play', async (_, downloadId) => {
     try {
       const download = getDownload(downloadId);
-      if (!download) return { success: false, error: 'Download not found' };
-
-      if (download.remux_path && fs.existsSync(download.remux_path)) {
-        const fileUrl = pathToFileURL(download.remux_path).toString();
-        return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+      if (!download) {
+        console.warn('[play] Download not found for id:', downloadId);
+        return { success: false, error: 'Download not found' };
       }
+
+      console.log('[play] Playing download:', { id: downloadId, vault_path: download.vault_path, remux_path: download.remux_path });
+
+      // Primary: vault_path (hash-based, always set for new downloads)
       if (download.vault_path) {
         const vaultP = path.join(getVaultDir(), download.vault_path);
+        console.log('[play] checking vault_path:', vaultP, 'exists:', fs.existsSync(vaultP));
         if (fs.existsSync(vaultP)) {
           const fileUrl = pathToFileURL(vaultP).toString();
-          return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+          const result = { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+
+          // Find subtitles by hash prefix in vault dir
+          const vaultDir = getVaultDir();
+          const hashPrefix = download.vault_path.replace(path.extname(download.vault_path), '');
+          try {
+            const subs = fs.readdirSync(vaultDir).filter(f => f.startsWith(hashPrefix + '.') && f.endsWith('.vtt'));
+            console.log('[play] VTT files found in vault:', subs.length, subs);
+            if (subs.length > 0) {
+              result.subtitles = subs.map(f => {
+                const absPath = path.join(vaultDir, f);
+                const subUrl = pathToFileURL(absPath).toString();
+                const lang = f.replace(hashPrefix + '.', '').replace('.vtt', '');
+                return {
+                  lang,
+                  file: 'vault' + subUrl.slice('file'.length),
+                  label: getLanguageName(lang),
+                };
+              });
+            }
+          } catch (e) {
+            console.warn('[play] Error reading vault subtitles:', e.message);
+          }
+
+          return result;
         }
+        console.warn('[play] vault_path set but file does not exist:', vaultP);
       }
+
+      // Fallback: legacy remux_path (organized dirs, pre-vault-refactor)
+      if (download.remux_path && fs.existsSync(download.remux_path)) {
+        const fileUrl = pathToFileURL(download.remux_path).toString();
+        const result = { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+        console.log('[play] fallback remux_path found, exists');
+        if (download.subtitles_path) {
+          const subsDir = download.subtitles_path
+            ? path.join(path.dirname(download.remux_path), download.subtitles_path)
+            : path.dirname(download.remux_path);
+          try {
+            const subs = fs.readdirSync(subsDir).filter(f => f.endsWith('.vtt'));
+            if (subs.length > 0) {
+              result.subtitles = subs.map(f => {
+                const absPath = path.join(subsDir, f);
+                const subUrl = pathToFileURL(absPath).toString();
+                return {
+                  lang: f.replace('.vtt', ''),
+                  file: 'vault' + subUrl.slice('file'.length),
+                  label: getLanguageName(f.replace('.vtt', '')),
+                };
+              });
+            }
+          } catch (e) {
+            console.warn('[play] Error reading subtitle dir:', e.message);
+          }
+        }
+        return result;
+      }
+
+      console.warn('[play] File not found for download', downloadId, { vault_path: download.vault_path, remux_path: download.remux_path });
       return { success: false, error: 'File not found' };
     } catch (err) {
+      console.warn('[play] Unexpected error:', err.message);
       return { success: false, error: err.message };
     }
   });
@@ -1486,43 +1556,61 @@ function register(getMainWindowFn) {
   ipcMain.handle('desk-download:show-in-folder', (_, downloadId) => {
     const download = getDownload(downloadId);
     if (!download) return;
+    if (download.vault_path) {
+      const vaultP = path.join(getVaultDir(), download.vault_path);
+      if (fs.existsSync(vaultP)) shell.showItemInFolder(vaultP);
+      return;
+    }
     if (download.remux_path && fs.existsSync(download.remux_path)) {
       shell.showItemInFolder(download.remux_path);
-    } else if (download.vault_path) {
-      const vaultDir = getVaultDir();
-      if (fs.existsSync(vaultDir)) shell.openPath(vaultDir);
-    } else {
-      const target = download.file_path || download.download_path;
-      if (target && fs.existsSync(target)) shell.showItemInFolder(target);
+      return;
     }
+    const target = download.file_path || download.download_path;
+    if (target && fs.existsSync(target)) shell.showItemInFolder(target);
   });
 
-  // ── Vault migration & remux ────────────────────────────────────────────────
+  // ── Vault-first migration ───────────────────────────────────────────────────
+  // 1. Move legacy staging files into vault (hash-based)
   try {
     const db = require('@nexube/store').getDatabase();
     const legacy = db.prepare(
-      `SELECT id, file_path, vault_path, remux_path FROM downloads WHERE status = 'completed' AND file_path IS NOT NULL AND vault_path IS NULL`
+      `SELECT id, file_path FROM downloads WHERE status = 'completed' AND file_path IS NOT NULL AND vault_path IS NULL`
     ).all();
     for (const row of legacy) {
       if (!row.file_path || !fs.existsSync(row.file_path)) continue;
       const name = moveToVault(row.id, row.file_path);
       updateDownload(row.id, { vaultPath: name, filePath: null });
-      const vaultedPath = path.join(getVaultDir(), name);
-      if (fs.existsSync(vaultedPath)) doRemuxMigration(row.id, vaultedPath);
     }
   } catch {}
 
-  // Remux existing vault files to organized remux dir
+  // 2. Backfill: move existing organized (remux_path) files into vault
   try {
     const db = require('@nexube/store').getDatabase();
-    const vaulted = db.prepare(
-      `SELECT id FROM downloads WHERE status = 'completed' AND vault_path IS NOT NULL AND remux_path IS NULL`
+    const organized = db.prepare(
+      `SELECT id, remux_path FROM downloads WHERE status = 'completed' AND remux_path IS NOT NULL AND vault_path IS NULL`
     ).all();
-    for (const row of vaulted) {
-      const download = getDownload(row.id);
-      if (!download || !download.vault_path) continue;
-      const vaultPath = path.join(getVaultDir(), download.vault_path);
-      if (fs.existsSync(vaultPath)) doRemuxMigration(row.id, vaultPath);
+    const vaultDir = getVaultDir();
+    for (const row of organized) {
+      if (!row.remux_path || !fs.existsSync(row.remux_path)) continue;
+      try {
+        const name = moveToVault(row.id, row.remux_path);
+        updateDownload(row.id, { vaultPath: name, remuxPath: null, filePath: null });
+        // Move subtitle files from organized dir to vault
+        const remuxDir = path.dirname(row.remux_path);
+        if (fs.existsSync(remuxDir)) {
+          const hashPrefix = name.replace(path.extname(name), '');
+          for (const f of fs.readdirSync(remuxDir)) {
+            if (f.endsWith('.vtt')) {
+              const src = path.join(remuxDir, f);
+              const dest = path.join(vaultDir, `${hashPrefix}.${f}`);
+              try { fs.copyFileSync(src, dest); } catch {}
+            }
+          }
+          try { fs.rmSync(remuxDir, { recursive: true, force: true }); } catch {}
+        }
+      } catch (e) {
+        console.warn('[migration] failed to move organized file to vault:', e.message);
+      }
     }
   } catch {}
 

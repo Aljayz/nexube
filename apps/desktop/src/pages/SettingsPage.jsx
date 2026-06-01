@@ -47,6 +47,10 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
     kidsFilterCountry,
     setKidsFilterCountry,
     saveKidsFilterCountry,
+    wyzieApiKey,
+    setWyzieApiKey,
+    subtitleLanguages,
+    setSubtitleLanguages,
   } = useSettings();
 
   const handleAddProfile = async (input) => {
@@ -88,6 +92,10 @@ function SettingsPage({ activeProfile, onProfileUpdated }) {
               setKidsFilterCountry={setKidsFilterCountry}
               onSaveKidsCountry={saveKidsFilterCountry}
               activeProfile={activeProfile}
+              wyzieApiKey={wyzieApiKey}
+              setWyzieApiKey={setWyzieApiKey}
+              subtitleLanguages={subtitleLanguages}
+              setSubtitleLanguages={setSubtitleLanguages}
             />
           </SettingsSection>
         )}

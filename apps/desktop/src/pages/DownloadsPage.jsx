@@ -49,8 +49,15 @@ function DownloadsPage({ activeProfile }) {
 
   const handlePlay = useCallback(async (download) => {
     const result = await playDownload(download.id);
+    console.log('[DownloadsPage] play result:', result);
     if (result?.success && result.filePath) {
-      setPlayingDownload({ filePath: result.filePath, title: download.title });
+      setPlayingDownload({
+        filePath: result.filePath,
+        title: download.title,
+        subtitles: result.subtitles,
+      });
+    } else {
+      console.warn('[DownloadsPage] play failed:', result?.error);
     }
   }, [playDownload]);
 
@@ -772,6 +779,7 @@ function DownloadsPage({ activeProfile }) {
           filePath={playingDownload.filePath}
           title={playingDownload.title}
           onClose={() => setPlayingDownload(null)}
+          subtitles={playingDownload.subtitles}
         />
       )}
 

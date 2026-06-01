@@ -8,6 +8,8 @@ function getStore() {
       name: 'nexube-settings',
       defaults: {
         tmdbApiKey: '',
+        wyzieApiKey: '',
+        subtitleLanguages: ['en'],
         lastProfile: 'master-id',
         preferredSource: 'videasy',
         settings: {},
@@ -38,6 +40,15 @@ function register() {
 
   ipcMain.handle('secure:set', async (_, key, value) => {
     getStore().set(`secure.${key}`, value);
+    return true;
+  });
+
+  ipcMain.handle('storage:get-wyzie-key', async () => {
+    return getStore().get('wyzieApiKey', '');
+  });
+
+  ipcMain.handle('storage:set-wyzie-key', async (_, value) => {
+    getStore().set('wyzieApiKey', value);
     return true;
   });
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, Settings } from 'lucide-react';
+import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, Settings, Subtitles } from 'lucide-react';
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useDownloads } from '../hooks/useDownloads';
 
@@ -36,6 +36,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const [batchQueued, setBatchQueued] = useState(false);
   const [selectedEpisodes, setSelectedEpisodes] = useState(new Set());
   const [selectedCollectionItems, setSelectedCollectionItems] = useState(new Set());
+  const [wyzieKeyMissing, setWyzieKeyMissing] = useState(false);
   const abortRef = useRef(false);
 
   useEffect(() => {
@@ -102,6 +103,17 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
       }
     }
   }, [downloads, downloadStatus]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const key = await window.electron?.storage?.get('wyzieApiKey');
+        setWyzieKeyMissing(!key);
+      } catch {
+        setWyzieKeyMissing(true);
+      }
+    })();
+  }, []);
 
   async function fetchSeasons() {
     try {
@@ -544,6 +556,22 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
             <div className="mb-lg p-sm bg-danger/10 border border-danger/30 rounded text-sm text-danger flex items-center gap-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {wyzieKeyMissing && (
+            <div className="mb-lg p-sm bg-background border border-border rounded text-sm text-text-muted flex items-center gap-sm">
+              <Subtitles className="w-4 h-4 flex-shrink-0 text-accent" />
+              <span>
+                No Wyzie API key configured. Add one in{' '}
+                <button
+                  onClick={() => window.electron?.navigation?.navigate?.('/settings')}
+                  className="text-accent hover:underline"
+                >
+                  Settings → General
+                </button>{' '}
+                for automatic subtitles.
+              </span>
             </div>
           )}
 

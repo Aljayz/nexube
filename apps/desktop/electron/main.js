@@ -14,6 +14,8 @@ const MIME_TYPES = {
   '.ts': 'video/mp2t',
   '.ogg': 'video/ogg',
   '.ogv': 'video/ogg',
+  '.vtt': 'text/vtt',
+  '.srt': 'text/plain',
 };
 
 const BLOCKED_HOSTS = [
@@ -83,6 +85,7 @@ const { register: registerLibrary } = require('./ipc/library');
 const { register: registerSystem } = require('./ipc/system');
 const { register: registerDeskDownloads, killAllDownloads: killAllDeskDownloads } = require('./ipc/desk-downloads');
 const { register: registerUpdater } = require('./ipc/updater');
+const { register: registerWyzie } = require('./ipc/wyzie');
 
 let mainWindow = null;
 
@@ -274,6 +277,7 @@ app.whenReady().then(() => {
   registerDeskDownloads(getMainWindow);
   registerAllmanga();
   registerUpdater();
+  registerWyzie();
 
   ipcMain.handle('get-block-stats', () => blockStats.getBlockStats());
   ipcMain.handle('get-platform', () => process.platform);
@@ -321,12 +325,16 @@ app.whenReady().then(() => {
     try {
       const vaultUrl = new URL(request.url);
       let filePath = decodeURIComponent(vaultUrl.pathname);
-      // On Windows, Chromium may treat a drive letter as the hostname
-      // (e.g. vault://c/Users/...) instead of keeping it in the path
-      // (vault:///C:/Users/...). Reconstruct the absolute path if so.
-      if (process.platform === 'win32') {
-        if (vaultUrl.hostname && /^[a-zA-Z]$/.test(vaultUrl.hostname)) {
+      // When Chromium normalizes vault:///absolute/path to vault://host/path,
+      // the first path component ends up as the hostname (e.g. vault://home/aljay/...
+      // → hostname="home", pathname="/aljay/..."). Reconstruct the absolute path.
+      // On Windows, a single-letter hostname is a drive letter (vault://c/Users/...
+      // → hostname="c", pathname="/Users/...") → prepend "C:".
+      if (vaultUrl.hostname) {
+        if (process.platform === 'win32' && /^[a-zA-Z]$/.test(vaultUrl.hostname)) {
           filePath = `${vaultUrl.hostname.toUpperCase()}:${filePath}`;
+        } else {
+          filePath = `/${vaultUrl.hostname}${filePath}`;
         }
         // Strip leading / before drive letter (e.g. /C:/ → C:/)
         filePath = filePath.replace(/^\/([a-zA-Z]:)/, '$1');

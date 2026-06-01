@@ -44,14 +44,22 @@ export function applyAccentColor(color) {
 export function useSettings() {
   const [apiKey, setApiKey] = useState('');
   const [kidsFilterCountry, setKidsFilterCountry] = useState('US');
+  const [wyzieApiKey, setWyzieApiKey] = useState('');
+  const [subtitleLanguages, setSubtitleLanguages] = useState(['en']);
 
   useEffect(() => {
     async function loadSettings() {
       try {
-        const key = await window.electron?.storage?.get('tmdbApiKey');
-        setApiKey(key || '');
+      const key = await window.electron?.storage?.get('tmdbApiKey');
+      setApiKey(key || '');
 
-        const country = await window.electron?.storage?.get('kidsFilterCountry');
+      const wyzieKey = await window.electron?.storage?.get('wyzieApiKey');
+      setWyzieApiKey(wyzieKey || '');
+
+      const langs = await window.electron?.storage?.get('subtitleLanguages');
+      if (Array.isArray(langs) && langs.length > 0) setSubtitleLanguages(langs);
+
+      const country = await window.electron?.storage?.get('kidsFilterCountry');
         if (country) setKidsFilterCountry(country);
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -70,5 +78,9 @@ export function useSettings() {
     kidsFilterCountry,
     setKidsFilterCountry,
     saveKidsFilterCountry,
+    wyzieApiKey,
+    setWyzieApiKey,
+    subtitleLanguages,
+    setSubtitleLanguages,
   };
 }

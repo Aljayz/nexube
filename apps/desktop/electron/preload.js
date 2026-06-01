@@ -245,6 +245,10 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.removeListener(channel, handler);
     },
   },
+  wyzie: {
+    openRedeem: () => ipcRenderer.invoke('wyzie:open-redeem'),
+    validateKey: (key) => ipcRenderer.invoke('wyzie:validate-key', key),
+  },
   onBlockedUpdate: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('blocked-stats-update', handler);

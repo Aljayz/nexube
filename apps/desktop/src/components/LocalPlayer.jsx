@@ -10,7 +10,7 @@ function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) {
+export default function LocalPlayer({ filePath, title, onClose, onVideoEnded, subtitles }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -22,6 +22,9 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
   const [error, setError] = useState(null);
   const [errorDetail, setErrorDetail] = useState(null);
   const [showErrorDetail, setShowErrorDetail] = useState(false);
+  const [activeSubtitle, setActiveSubtitle] = useState(
+    subtitles && subtitles.length > 0 ? subtitles[0].lang : null
+  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -136,7 +139,18 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
             key={filePath}
             onClick={togglePlay}
             onDoubleClick={toggleFullscreen}
-          />
+          >
+            {subtitles && subtitles.map((s) => (
+              <track
+                key={s.lang}
+                kind="subtitles"
+                src={s.file}
+                srcLang={s.lang}
+                label={s.label || s.lang}
+                default={s.lang === activeSubtitle}
+              />
+            ))}
+          </video>
 
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-md">
@@ -218,6 +232,36 @@ export default function LocalPlayer({ filePath, title, onClose, onVideoEnded }) 
               <span className="text-xs text-white/60">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
+              {subtitles && subtitles.length > 0 && (
+                <div className="relative group/sub">
+                  <button className="text-white/70 hover:text-white transition-colors text-xs px-xs py-0.5 rounded border border-white/20 hover:border-accent">
+                    CC
+                  </button>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/sub:block group-hover/sub:pointer-events-auto">
+                    <div className="bg-surface border border-border rounded-lg p-xs shadow-xl whitespace-nowrap">
+                      <button
+                        onClick={() => setActiveSubtitle(null)}
+                        className={`block w-full text-left px-sm py-xs text-xs rounded ${
+                          activeSubtitle === null ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+                        }`}
+                      >
+                        Off
+                      </button>
+                      {subtitles.map((s) => (
+                        <button
+                          key={s.lang}
+                          onClick={() => setActiveSubtitle(s.lang)}
+                          className={`block w-full text-left px-sm py-xs text-xs rounded ${
+                            activeSubtitle === s.lang ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+                          }`}
+                        >
+                          {s.label || s.lang}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button onClick={toggleFullscreen} className="text-white/70 hover:text-white transition-colors">
