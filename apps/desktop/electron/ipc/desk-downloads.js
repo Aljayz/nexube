@@ -28,21 +28,37 @@ const {
   remuxToMp4,
   remuxToFile,
   isMpegTs,
+  setDiagCallback,
 } = require('../services/desk-downloader');
 
 const downloadsStore = new Map();
 const _remuxingDownloads = new Set();
 
+function diag(...args) {
+  const msg = '[remux-diag] ' + args.join(' ');
+  console.log(msg);
+  const mw = getMainWindow();
+  if (mw && !mw.isDestroyed()) {
+    mw.webContents.send('desk-download:diag', msg);
+  }
+}
+
 function sendProgress(update) {
   const mw = getMainWindow();
   if (update.status === 'completed' && update.filePath && update.id && fs.existsSync(update.filePath)) {
-    if (_remuxingDownloads.has(update.id)) return;
+    diag('sendProgress: completed with filePath, checking remux queue');
+    if (_remuxingDownloads.has(update.id)) {
+      diag('sendProgress: already in remux queue, skipping');
+      return;
+    }
     _remuxingDownloads.add(update.id);
     try {
       const vaultName = moveToVault(update.id, update.filePath);
       const vaultPath = path.join(getVaultDir(), vaultName);
+      diag('sendProgress: moved to vault', vaultPath);
       completeWithRemux(update.id, vaultPath, update);
     } catch (e) {
+      diag('sendProgress: vault move failed:', e.message);
       console.warn('[remux] vault move failed:', e);
       _remuxingDownloads.delete(update.id);
     }
@@ -54,14 +70,19 @@ function sendProgress(update) {
 }
 
 async function completeWithRemux(downloadId, vaultPath, update) {
+  diag('completeWithRemux: start', { downloadId, vaultPath });
   try {
     const download = getDownload(downloadId);
     if (!download) throw new Error('Download not found');
     const remuxPath = getRemuxPath(download);
+    diag('completeWithRemux: remuxPath resolved', remuxPath);
+    diag('completeWithRemux: calling remuxToFile');
     const ok = await remuxToFile(vaultPath, remuxPath);
+    diag('completeWithRemux: remuxToFile returned', ok);
     if (ok) {
       try { fs.unlinkSync(vaultPath); } catch {}
       updateDownload(downloadId, { remuxPath, vaultPath: null, filePath: null });
+      diag('completeWithRemux: success, updated DB');
       const mw = getMainWindow();
       if (mw && !mw.isDestroyed()) {
         mw.webContents.send('desk-download:progress', {
@@ -72,9 +93,11 @@ async function completeWithRemux(downloadId, vaultPath, update) {
         });
       }
     } else {
+      diag('completeWithRemux: remuxToFile returned false');
       throw new Error('remuxToFile failed');
     }
   } catch (e) {
+    diag('completeWithRemux: failed', e.message);
     console.warn('[remux] completeWithRemux failed:', e.message);
     const mw = getMainWindow();
     if (mw && !mw.isDestroyed()) {
@@ -87,6 +110,7 @@ async function completeWithRemux(downloadId, vaultPath, update) {
     }
   } finally {
     _remuxingDownloads.delete(downloadId);
+    diag('completeWithRemux: finished');
   }
 }
 
@@ -199,6 +223,12 @@ function getDownloadFilePath(download) {
 
 function register(getMainWindowFn) {
   _getMainWindow = getMainWindowFn;
+  setDiagCallback((msg) => {
+    const mw = getMainWindow();
+    if (mw && !mw.isDestroyed()) {
+      mw.webContents.send('desk-download:diag', msg);
+    }
+  });
 
   ipcMain.handle('desk-download:check-bundled', () => {
     return checkBundledAndRegister();

@@ -143,10 +143,21 @@ contextBridge.exposeInMainWorld('electron', {
        ipcRenderer.on('download:batch-progress', handler);
        return handler;
      },
-     offBatchProgress: (handler) => {
-       if (handler) ipcRenderer.removeListener('download:batch-progress', handler);
-     },
-   },
+      offBatchProgress: (handler) => {
+        if (handler) ipcRenderer.removeListener('download:batch-progress', handler);
+      },
+      onDiag: (callback) => {
+        const handler = (_, msg) => {
+          console.log('[main]', msg);
+          if (callback) callback(msg);
+        };
+        ipcRenderer.on('desk-download:diag', handler);
+        return handler;
+      },
+      offDiag: (handler) => {
+        if (handler) ipcRenderer.removeListener('desk-download:diag', handler);
+      },
+    },
   onM3u8Found: (callback) => {
     const handler = (_, url) => callback(url);
     ipcRenderer.on('m3u8-found', handler);

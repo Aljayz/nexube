@@ -21,29 +21,42 @@ try {
 } catch {}
 
 function resolveToolBinary(binaryPath) {
-  if (!binaryPath) return null;
+  if (!binaryPath) {
+    diag('resolveToolBinary: no path provided');
+    return null;
+  }
   try {
     fs.accessSync(binaryPath, fs.constants.X_OK);
-    console.log('[remux] using binary:', binaryPath);
+    diag('resolveToolBinary: using binary:', binaryPath);
     return binaryPath;
   } catch {}
   try {
     const dest = path.join(app.getPath('userData'), path.basename(binaryPath));
     if (!fs.existsSync(dest)) {
-      console.log('[remux] extracting binary to', dest);
+      diag('resolveToolBinary: extracting binary to', dest);
       fs.copyFileSync(binaryPath, dest);
       try { fs.chmodSync(dest, 0o755); } catch {}
     }
-    console.log('[remux] extracted to:', dest);
+    diag('resolveToolBinary: extracted to:', dest);
     return dest;
   } catch (e) {
-    console.warn('[remux] cannot extract binary:', binaryPath, e.message);
+    diag('resolveToolBinary: cannot extract binary:', binaryPath, e.message);
     return null;
   }
 }
 
 const activeProcs = new Map();
 const binaryTokenRegistry = new Map();
+
+let _diagCallback = null;
+function setDiagCallback(cb) {
+  _diagCallback = cb;
+}
+function diag(...args) {
+  const msg = '[remux-diag] ' + args.join(' ');
+  console.log(msg);
+  if (_diagCallback) _diagCallback(msg);
+}
 
 function generateToken() {
   return crypto.randomUUID();
@@ -122,9 +135,10 @@ function _checkDownloader(folderPath) {
 function isMpegTs(filePath) {
   const bin = resolveToolBinary(ffprobePath);
   if (!bin || !filePath || !fs.existsSync(filePath)) {
-    console.log('[remux] isMpegTs skip: bin=', !!bin, 'file=', !!filePath, 'exists=', filePath ? fs.existsSync(filePath) : false);
+    diag('isMpegTs skip: bin=', !!bin, 'file=', !!filePath, 'exists=', filePath ? fs.existsSync(filePath) : false);
     return Promise.resolve(false);
   }
+  diag('isMpegTs probing with binary:', bin, 'file:', filePath);
   return new Promise((resolve) => {
     const proc = spawn(bin, [
       '-v', 'error',
@@ -133,20 +147,24 @@ function isMpegTs(filePath) {
       filePath,
     ], { stdio: 'pipe' });
     let stdout = '';
+    let stderr = '';
     proc.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     proc.on('close', (code) => {
       const format = stdout.trim();
-      console.log('[remux] ffprobe', filePath, '→', format, '(code:', code, ')');
-      resolve(code === 0 && format === 'mpegts');
+      const isTs = code === 0 && format === 'mpegts';
+      diag('ffprobe result:', { code, format, isTs, stderr: stderr.trim() });
+      resolve(isTs);
     });
     proc.on('error', (err) => {
-      console.warn('[remux] ffprobe spawn error:', err.message);
+      diag('ffprobe spawn error:', { binary: bin, error: err.message, code: err.code });
       resolve(false);
     });
   });
 }
 
 function ffmpegRemux(ffmpeg, sourcePath, destPath) {
+  diag('ffmpegRemux: starting', { ffmpeg, sourcePath, destPath });
   return new Promise((resolve) => {
     const tmpPath = destPath + '.remux.tmp';
     const proc = spawn(ffmpeg, [
@@ -162,20 +180,21 @@ function ffmpegRemux(ffmpeg, sourcePath, destPath) {
       if (code === 0 && fs.existsSync(tmpPath)) {
         try {
           fs.renameSync(tmpPath, destPath);
+          diag('ffmpegRemux: success');
           resolve(true);
         } catch (e) {
-          console.warn('[remux] ffmpegRemux rename failed:', e.message);
+          diag('ffmpegRemux: rename failed:', e.message);
           try { fs.unlinkSync(tmpPath); } catch {}
           resolve(false);
         }
       } else {
-        console.warn('[remux] ffmpegRemux failed code:', code, 'stderr:', stderr.slice(-500));
+        diag('ffmpegRemux: failed', { code, stderr: stderr.slice(-500) });
         try { fs.unlinkSync(tmpPath); } catch {}
         resolve(false);
       }
     });
     proc.on('error', (err) => {
-      console.warn('[remux] ffmpegRemux spawn error:', err.message);
+      diag('ffmpegRemux: spawn error:', err.message);
       try { fs.unlinkSync(tmpPath); } catch {}
       resolve(false);
     });
@@ -185,20 +204,22 @@ function ffmpegRemux(ffmpeg, sourcePath, destPath) {
 function remuxToMp4(filePath) {
   const ffmpeg = resolveToolBinary(ffmpegPath);
   if (!ffmpeg || !filePath || !fs.existsSync(filePath)) {
-    console.log('[remux] remuxToMp4 skip: ffmpeg=', !!ffmpeg, 'file=', !!filePath, 'exists=', filePath ? fs.existsSync(filePath) : false);
+    diag('remuxToMp4 skip: ffmpeg=', !!ffmpeg, 'file=', !!filePath, 'exists=', filePath ? fs.existsSync(filePath) : false);
     return Promise.resolve(false);
   }
   const ext = path.extname(filePath).toLowerCase();
-  if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') return Promise.resolve(false);
+  if (ext !== '.mp4' && ext !== '.ts' && ext !== '.mkv' && ext !== '.m4v') {
+    diag('remuxToMp4 skip: unsupported extension', ext);
+    return Promise.resolve(false);
+  }
   const probeBin = resolveToolBinary(ffprobePath);
   const needsRemux = !probeBin;
-  console.log('[remux] remuxToMp4 ffprobe=', !!probeBin, 'needsRemux=', needsRemux, 'file=', filePath);
-  if (needsRemux) console.log('[remux] ffprobe unavailable, always remuxing');
-  else console.log('[remux] probing', filePath);
+  diag('remuxToMp4 ffprobe=', !!probeBin, 'needsRemux=', needsRemux, 'file=', filePath);
+  if (needsRemux) diag('ffprobe unavailable, always remuxing');
   return (needsRemux ? Promise.resolve(true) : isMpegTs(filePath)).then((isTs) => {
-    console.log('[remux] remuxToMp4 isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'skip');
+    diag('remuxToMp4 isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'skip');
     if (!isTs) return true;
-    console.log('[remux] is mpegts, remuxing...');
+    diag('is mpegts, remuxing...');
     const tmpPath = filePath + '.remux.mp4';
     return ffmpegRemux(ffmpeg, filePath, tmpPath).then((ok) => {
       if (!ok) return false;
@@ -206,7 +227,7 @@ function remuxToMp4(filePath) {
         fs.unlinkSync(filePath);
         const mp4Target = path.join(path.dirname(filePath), path.parse(filePath).name + '.mp4');
         fs.renameSync(tmpPath, mp4Target);
-        console.log('[remux] renamed', path.basename(filePath), '→', path.basename(mp4Target));
+        diag('renamed', path.basename(filePath), '→', path.basename(mp4Target));
         return mp4Target;
       } else {
         fs.renameSync(tmpPath, filePath);
@@ -217,28 +238,29 @@ function remuxToMp4(filePath) {
 }
 
 function remuxToFile(sourcePath, destPath) {
+  diag('remuxToFile: start', { sourcePath, destPath });
   const ffmpeg = resolveToolBinary(ffmpegPath);
   if (!ffmpeg || !sourcePath || !fs.existsSync(sourcePath)) {
-    console.log('[remux] remuxToFile skip: ffmpeg=', !!ffmpeg, 'source=', !!sourcePath, 'exists=', sourcePath ? fs.existsSync(sourcePath) : false);
+    diag('remuxToFile skip: ffmpeg=', !!ffmpeg, 'source=', !!sourcePath, 'exists=', sourcePath ? fs.existsSync(sourcePath) : false);
     return Promise.resolve(false);
   }
   try { fs.mkdirSync(path.dirname(destPath), { recursive: true }); } catch {}
   const probeBin = resolveToolBinary(ffprobePath);
   const needsRemux = !probeBin;
-  console.log('[remux] remuxToFile ffprobe=', !!probeBin, 'needsRemux=', needsRemux, 'src=', sourcePath, 'dst=', destPath);
-  if (needsRemux) console.log('[remux] remuxToFile ffprobe unavailable, always remuxing');
+  diag('remuxToFile ffprobe=', !!probeBin, 'needsRemux=', needsRemux);
+  if (needsRemux) diag('remuxToFile ffprobe unavailable, always remuxing');
   return (needsRemux ? Promise.resolve(true) : isMpegTs(sourcePath)).then((isTs) => {
-    console.log('[remux] remuxToFile isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'copy');
+    diag('remuxToFile isTs=', isTs, '→', isTs ? 'ffmpeg remux' : 'copy');
     if (isTs) {
-      console.log('[remux] remuxToFile remuxing to', destPath);
+      diag('remuxToFile remuxing to', destPath);
       return ffmpegRemux(ffmpeg, sourcePath, destPath);
     }
-    console.log('[remux] remuxToFile already proper mp4, copying');
+    diag('remuxToFile already proper mp4, copying');
     try {
       fs.copyFileSync(sourcePath, destPath);
       return true;
     } catch (e) {
-      console.warn('[remux] remuxToFile copy failed:', e.message);
+      diag('remuxToFile copy failed:', e.message);
       return false;
     }
   });
@@ -791,4 +813,5 @@ module.exports = {
   remuxToMp4,
   remuxToFile,
   isMpegTs,
+  setDiagCallback,
 };
