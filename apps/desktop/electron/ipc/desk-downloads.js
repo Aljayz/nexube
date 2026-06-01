@@ -44,6 +44,7 @@ function diag(...args) {
 }
 
 function sendProgress(update) {
+  console.log('[remux-flow] sendProgress:', JSON.stringify({ status: update.status, id: update.id ? update.id.slice(0, 8) : null, filePath: update.filePath ? 'yes' : 'no', exists: update.filePath ? fs.existsSync(update.filePath) : null }));
   const mw = getMainWindow();
   if (update.status === 'completed' && update.filePath && update.id && fs.existsSync(update.filePath)) {
     diag('sendProgress: completed with filePath, checking remux queue');
@@ -93,8 +94,18 @@ async function completeWithRemux(downloadId, vaultPath, update) {
         });
       }
     } else {
-      diag('completeWithRemux: remuxToFile returned false');
-      throw new Error('remuxToFile failed');
+      diag('completeWithRemux: remuxToFile returned false, keeping vault fallback');
+      const vaultName = path.basename(vaultPath);
+      updateDownload(downloadId, { vaultPath: vaultName, remuxPath: null, filePath: null });
+      const mw = getMainWindow();
+      if (mw && !mw.isDestroyed()) {
+        mw.webContents.send('desk-download:progress', {
+          ...update,
+          status: 'completed',
+          filePath: null,
+          vaultPath: vaultName,
+        });
+      }
     }
   } catch (e) {
     diag('completeWithRemux: failed', e.message);
@@ -966,6 +977,13 @@ function register(getMainWindowFn) {
       if (download.remux_path && fs.existsSync(download.remux_path)) {
         const fileUrl = pathToFileURL(download.remux_path).toString();
         return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+      }
+      if (download.vault_path) {
+        const vaultP = path.join(getVaultDir(), download.vault_path);
+        if (fs.existsSync(vaultP)) {
+          const fileUrl = pathToFileURL(vaultP).toString();
+          return { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
+        }
       }
       return { success: false, error: 'File not found' };
     } catch (err) {

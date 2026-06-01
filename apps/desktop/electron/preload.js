@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Always-on diagnostic forwarding from main process
+ipcRenderer.on('desk-download:diag', (_, msg) => {
+  console.log('[remux-diag]', msg);
+});
+
 contextBridge.exposeInMainWorld('electron', {
   storage: {
     get: (key) => ipcRenderer.invoke('storage:get', key),

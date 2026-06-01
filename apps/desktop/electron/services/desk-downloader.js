@@ -588,7 +588,19 @@ function handleMessage(msg, entry, sendProgress, persistProgress, id, appendLog)
       entry.completedAt = Date.now();
       entry.lastMessage = 'Completed';
       entry._lastProgressTime = Date.now();
-      sendProgress({ id, status: 'completed', progress: 100, lastMessage: 'Completed' });
+      if (!entry.filePath && entry.downloadPath) {
+        try {
+          const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.ts', '.m4v'];
+          const match = fs.readdirSync(entry.downloadPath)
+            .filter((f) => VIDEO_EXTS.some((e) => f.toLowerCase().endsWith(e)))
+            .map((f) => ({ f, mtime: fs.statSync(path.join(entry.downloadPath, f)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime)[0];
+          if (match) entry.filePath = path.join(entry.downloadPath, match.f);
+        } catch (e) {
+          console.warn('[remux] finished handler scan failed:', e.message);
+        }
+      }
+      sendProgress({ id, status: 'completed', progress: 100, filePath: entry.filePath, lastMessage: 'Completed' });
       persistProgress();
       return;
     }
