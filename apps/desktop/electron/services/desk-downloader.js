@@ -171,7 +171,7 @@ function isMpegTs(filePath) {
 function ffmpegRemux(ffmpeg, sourcePath, destPath) {
   diag('ffmpegRemux: starting', { ffmpeg, sourcePath, destPath });
   return new Promise((resolve) => {
-    const tmpPath = destPath + '.remux.tmp';
+    const tmpPath = destPath + '.remux.tmp.mp4';
     const proc = spawn(ffmpeg, [
       '-i', sourcePath,
       '-c', 'copy',
