@@ -324,8 +324,12 @@ app.whenReady().then(() => {
       // On Windows, Chromium may treat a drive letter as the hostname
       // (e.g. vault://c/Users/...) instead of keeping it in the path
       // (vault:///C:/Users/...). Reconstruct the absolute path if so.
-      if (process.platform === 'win32' && vaultUrl.hostname && /^[a-zA-Z]$/.test(vaultUrl.hostname)) {
-        filePath = `/${vaultUrl.hostname.toUpperCase()}:${filePath}`;
+      if (process.platform === 'win32') {
+        if (vaultUrl.hostname && /^[a-zA-Z]$/.test(vaultUrl.hostname)) {
+          filePath = `${vaultUrl.hostname.toUpperCase()}:${filePath}`;
+        }
+        // Strip leading / before drive letter (e.g. /C:/ → C:/)
+        filePath = filePath.replace(/^\/([a-zA-Z]:)/, '$1');
       }
       if (!fs.existsSync(filePath)) {
         return new Response('Not found', { status: 404 });

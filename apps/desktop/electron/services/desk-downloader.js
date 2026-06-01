@@ -25,11 +25,16 @@ function resolveToolBinary(binaryPath) {
     diag('resolveToolBinary: no path provided');
     return null;
   }
-  try {
-    fs.accessSync(binaryPath, fs.constants.X_OK);
-    diag('resolveToolBinary: using binary:', binaryPath);
-    return binaryPath;
-  } catch {}
+  const isAsar = binaryPath.includes('.asar');
+  if (!isAsar) {
+    try {
+      fs.accessSync(binaryPath, fs.constants.X_OK);
+      diag('resolveToolBinary: using binary:', binaryPath);
+      return binaryPath;
+    } catch {}
+  } else {
+    diag('resolveToolBinary: binary inside ASAR, will extract to userData');
+  }
   try {
     const dest = path.join(app.getPath('userData'), path.basename(binaryPath));
     if (!fs.existsSync(dest)) {
