@@ -35,7 +35,7 @@ const downloadsStore = new Map();
 const _remuxingDownloads = new Set();
 
 function diag(...args) {
-  const msg = '[remux-diag] ' + args.join(' ');
+  const msg = '[remux-diag] ' + args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : a).join(' ');
   console.log(msg);
   const mw = getMainWindow();
   if (mw && !mw.isDestroyed()) {

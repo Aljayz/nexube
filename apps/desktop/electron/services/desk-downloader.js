@@ -58,7 +58,7 @@ function setDiagCallback(cb) {
   _diagCallback = cb;
 }
 function diag(...args) {
-  const msg = '[remux-diag] ' + args.join(' ');
+  const msg = '[remux-diag] ' + args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : a).join(' ');
   console.log(msg);
   if (_diagCallback) _diagCallback(msg);
 }
