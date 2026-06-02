@@ -20,6 +20,7 @@ export default function MediaHero({
   onToggleSaved,
   onShowTrailerList,
   onShowDownload,
+  isUnreleased,
 }) {
   const backdropUrl = details?.backdropPath ? `https://image.tmdb.org/t/p/w1280${details.backdropPath}` : '';
   const posterUrl = details?.posterPath ? `https://image.tmdb.org/t/p/w780${details.posterPath}` : '';
@@ -71,10 +72,12 @@ export default function MediaHero({
           </div>
 
           <div className="flex items-center gap-md flex-wrap">
+            {!isUnreleased && (
             <button onClick={() => onPlay()} className="btn-primary flex items-center gap-sm">
               <Play className="w-4 h-4" />
               {savedProgress?.progressSeconds > 0 ? `Resume at ${formatTime(savedProgress.progress_seconds || savedProgress.progressSeconds)}` : 'Play'}
             </button>
+            )}
             {videos.length > 0 && (
               <button
                 onClick={() => videos.length === 1 ? onShowTrailerList?.(videos[0].key) : onShowTrailerList?.()}
@@ -98,10 +101,12 @@ export default function MediaHero({
               {isSaved ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
               Watchlist
             </button>
+            {!isUnreleased && (
             <button onClick={() => onShowDownload(true)} className="btn-secondary flex items-center gap-sm">
               <Download className="w-4 h-4" />
               Download
             </button>
+            )}
           </div>
         </div>
       </div>

@@ -45,7 +45,10 @@ export function useSettings() {
   const [apiKey, setApiKey] = useState('');
   const [kidsFilterCountry, setKidsFilterCountry] = useState('US');
   const [wyzieApiKey, setWyzieApiKey] = useState('');
+  const [subdlApiKey, setSubdlApiKey] = useState('');
   const [subtitleLanguages, setSubtitleLanguages] = useState(['en']);
+  const [subtitleSources, setSubtitleSources] = useState('all');
+  const [subtitleProvider, setSubtitleProvider] = useState('wyzie');
 
   useEffect(() => {
     async function loadSettings() {
@@ -56,8 +59,17 @@ export function useSettings() {
       const wyzieKey = await window.electron?.storage?.get('wyzieApiKey');
       setWyzieApiKey(wyzieKey || '');
 
+      const subdlKey = await window.electron?.storage?.get('subdlApiKey');
+      setSubdlApiKey(subdlKey || '');
+
       const langs = await window.electron?.storage?.get('subtitleLanguages');
       if (Array.isArray(langs) && langs.length > 0) setSubtitleLanguages(langs);
+
+      const sources = await window.electron?.storage?.get('subtitleSources');
+      if (sources) setSubtitleSources(sources);
+
+      const provider = await window.electron?.storage?.get('subtitleProvider');
+      if (provider) setSubtitleProvider(provider);
 
       const country = await window.electron?.storage?.get('kidsFilterCountry');
         if (country) setKidsFilterCountry(country);
@@ -80,7 +92,13 @@ export function useSettings() {
     saveKidsFilterCountry,
     wyzieApiKey,
     setWyzieApiKey,
+    subdlApiKey,
+    setSubdlApiKey,
     subtitleLanguages,
     setSubtitleLanguages,
+    subtitleSources,
+    setSubtitleSources,
+    subtitleProvider,
+    setSubtitleProvider,
   };
 }

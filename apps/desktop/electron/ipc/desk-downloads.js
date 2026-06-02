@@ -13,7 +13,7 @@ const {
 } = require('@nexube/store');
 const { captureM3u8Url } = require('../services/hls-capture');
 const { resolveAllmanga } = require('../ipc/allmanga');
-const { searchSubtitles, downloadAndSaveSubtitles } = require('../services/desk-subtitles');
+const { searchSubtitles, downloadAndSaveSubtitles, fetchSources, searchSubDL, downloadAndSaveSubDLSubtitles } = require('../services/desk-subtitles');
 const { getStore } = require('./storage');
 const {
   checkDownloader,
@@ -67,7 +67,7 @@ function sendProgress(update) {
     _remuxingDownloads.add(update.id);
     try {
       const vaultName = moveToVault(update.id, update.filePath);
-      const vaultPath = path.join(getVaultDir(), vaultName);
+      const vaultPath = path.join(getVideoDir(), vaultName);
       diag('sendProgress: moved to vault', vaultPath);
       completeWithRemux(update.id, vaultPath, update);
     } catch (e) {
@@ -87,7 +87,7 @@ async function completeWithRemux(downloadId, vaultPath, update) {
   try {
     const download = getDownload(downloadId);
     if (!download) throw new Error('Download not found');
-    const vaultDir = getVaultDir();
+    const vaultDir = getVideoDir();
     const vaultName = path.basename(vaultPath);
 
     // Check if remux is needed — skip temp file if already proper MP4
@@ -113,30 +113,55 @@ async function completeWithRemux(downloadId, vaultPath, update) {
     updateDownload(downloadId, { vaultPath: vaultName, remuxPath: null, filePath: null });
     diag('completeWithRemux: success, updated DB');
 
-    const store = getStore();
-    const wyzieApiKey = store.get('wyzieApiKey');
-    const subtitleLanguages = store.get('subtitleLanguages') || ['en'];
-    if (wyzieApiKey && download.tmdb_id) {
-      try {
-        const subtitles = await searchSubtitles({
-          tmdbId: download.tmdb_id,
-          type: download.type,
-          season: download.season,
-          episode: download.episode,
-          languages: subtitleLanguages,
-          apiKey: wyzieApiKey,
-        });
-        if (subtitles.length > 0) {
-          const hashPrefix = vaultName.replace(path.extname(vaultName), '');
-          const saved = await downloadAndSaveSubtitles(subtitles, vaultDir, hashPrefix);
-          if (saved.length > 0) {
-            diag('completeWithRemux: subtitles saved', saved.map(s => s.file));
+      const store = getStore();
+      const wyzieApiKey = store.get('wyzieApiKey');
+      const subdlApiKey = store.get('subdlApiKey');
+      const subtitleLanguages = store.get('subtitleLanguages') || ['en'];
+      const subtitleSources = store.get('subtitleSources') || 'all';
+      const subtitleProvider = store.get('subtitleProvider') || 'wyzie';
+      const hashPrefix = vaultName.replace(path.extname(vaultName), '');
+
+      if (update.fetchSubtitles !== false && download.tmdb_id) {
+        const subDir = path.join(getSubtitleDir(), hashPrefix);
+        if (subtitleProvider === 'subdl') {
+          if (subdlApiKey) {
+            try {
+              const results = await searchSubDL({
+                tmdbId: download.tmdb_id,
+                type: download.type,
+                season: download.season,
+                episode: download.episode,
+                languages: subtitleLanguages,
+                apiKey: subdlApiKey,
+              });
+              if (results.length > 0) {
+                const saved = await downloadAndSaveSubDLSubtitles(results, subDir, hashPrefix);
+                if (saved.length > 0) diag('completeWithRemux: subdl subtitles saved', saved.map(s => s.file));
+              }
+            } catch (subErr) {
+              console.warn('[subtitles] SubDL auto-download error:', subErr.message);
+            }
+          }
+        } else if (wyzieApiKey) {
+          try {
+            const results = await searchSubtitles({
+              tmdbId: download.tmdb_id,
+              type: download.type,
+              season: download.season,
+              episode: download.episode,
+              languages: subtitleLanguages,
+              sources: subtitleSources,
+              apiKey: wyzieApiKey,
+            });
+            if (results.length > 0) {
+              const saved = await downloadAndSaveSubtitles(results, subDir, hashPrefix);
+              if (saved.length > 0) diag('completeWithRemux: wyzie subtitles saved', saved.map(s => s.file));
+            }
+          } catch (subErr) {
+            console.warn('[subtitles] Wyzie auto-download error:', subErr.message);
           }
         }
-      } catch (subErr) {
-        console.warn('[subtitles] error during subtitle download:', subErr.message);
       }
-    }
 
     const mw = getMainWindow();
     if (mw && !mw.isDestroyed()) {
@@ -178,6 +203,12 @@ function getMainWindow() {
 function getVaultDir() {
   return path.join(app.getPath('userData'), 'vault');
 }
+function getVideoDir() {
+  return path.join(getVaultDir(), 'video');
+}
+function getSubtitleDir() {
+  return path.join(getVaultDir(), 'subtitle');
+}
 
 function vaultFilename(downloadId, filePath) {
   const hash = crypto.createHash('md5').update(downloadId).digest('hex').slice(0, 16);
@@ -190,10 +221,10 @@ function getStagingDir() {
 }
 
 function moveToVault(downloadId, sourcePath) {
-  const vaultDir = getVaultDir();
-  if (!fs.existsSync(vaultDir)) fs.mkdirSync(vaultDir, { recursive: true });
+  const videoDir = getVideoDir();
+  if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
   const name = vaultFilename(downloadId, sourcePath);
-  const dest = path.join(vaultDir, name);
+  const dest = path.join(videoDir, name);
   if (fs.existsSync(dest)) fs.unlinkSync(dest);
   try {
     fs.renameSync(sourcePath, dest);
@@ -208,7 +239,7 @@ function moveToVault(downloadId, sourcePath) {
 
 function getVaultPath(downloadId, filePath) {
   const name = vaultFilename(downloadId, filePath);
-  return path.join(getVaultDir(), name);
+  return path.join(getVideoDir(), name);
 }
 
 function vaultFileExists(downloadId, filePath) {
@@ -217,29 +248,58 @@ function vaultFileExists(downloadId, filePath) {
 
 function removeFromVault(download) {
   if (!download?.vault_path) return;
-  const fullPath = path.join(getVaultDir(), download.vault_path);
+  const fullPath = path.join(getVideoDir(), download.vault_path);
   try { if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath); } catch {}
+  const hashPrefix = download.vault_path.replace(path.extname(download.vault_path), '');
+  const subDir = path.join(getSubtitleDir(), hashPrefix);
+  try { if (fs.existsSync(subDir)) fs.rmSync(subDir, { recursive: true, force: true }); } catch {}
 }
 
 function cleanupPlaybackVault() {
-  const vaultDir = getVaultDir();
-  if (!fs.existsSync(vaultDir)) return;
-  for (const entry of fs.readdirSync(vaultDir, { withFileTypes: true })) {
-    if (entry.isFile()) {
-      try { fs.unlinkSync(path.join(vaultDir, entry.name)); } catch {}
+  const videoDir = getVideoDir();
+  if (fs.existsSync(videoDir)) {
+    for (const entry of fs.readdirSync(videoDir, { withFileTypes: true })) {
+      if (entry.isFile()) {
+        try { fs.unlinkSync(path.join(videoDir, entry.name)); } catch {}
+      }
     }
+  }
+  const subDir = getSubtitleDir();
+  if (fs.existsSync(subDir)) {
+    try { fs.rmSync(subDir, { recursive: true, force: true }); } catch {}
+    fs.mkdirSync(subDir, { recursive: true });
   }
 }
 
 // ── Export helpers ────────────────────────────────────────────────────────────
 function getDownloadFilePath(download) {
   if (download.vault_path) {
-    const vaultP = path.join(getVaultDir(), download.vault_path);
+    const vaultP = path.join(getVideoDir(), download.vault_path);
     if (fs.existsSync(vaultP)) return vaultP;
   }
   if (download.remux_path && fs.existsSync(download.remux_path)) return download.remux_path;
   if (download.file_path && fs.existsSync(download.file_path)) return download.file_path;
   return null;
+}
+
+function copySubtitlesForDownload(download, destSubDir, episodeLabel) {
+  if (!download.vault_path) return [];
+  const hashPrefix = path.basename(download.vault_path, path.extname(download.vault_path));
+  const subSourceDir = path.join(getSubtitleDir(), hashPrefix);
+  let subFiles;
+  try { subFiles = fs.readdirSync(subSourceDir).filter(f => f.endsWith('.vtt')); }
+  catch { return []; }
+  if (!fs.existsSync(destSubDir)) fs.mkdirSync(destSubDir, { recursive: true });
+  const copied = [];
+  for (const subFile of subFiles) {
+    const lang = subFile.replace(`${hashPrefix}.`, '').replace('.vtt', '');
+    const destName = `${episodeLabel}.${lang}.vtt`;
+    try {
+      fs.copyFileSync(path.join(subSourceDir, subFile), path.join(destSubDir, destName));
+      copied.push(lang);
+    } catch {}
+  }
+  return copied;
 }
 
 function register(getMainWindowFn) {
@@ -274,6 +334,7 @@ function register(getMainWindowFn) {
     sourceId,
     cookies,
     referer,
+    fetchSubtitles = true,
   }) => {
     try {
       const binaryPath = resolveBinaryPath(binaryToken);
@@ -314,6 +375,7 @@ function register(getMainWindowFn) {
         downloadId,
         cookies,
         referer,
+        fetchSubtitles,
       }, sendProgress, () => Array.from(downloadsStore.values()), updateDownloadEntry, updateDownload);
 
       if (result.ok) {
@@ -329,6 +391,7 @@ function register(getMainWindowFn) {
     profileId, mediaId, title, type, formatSpec, tmdbId,
     season, episode, sourceId, binaryToken,
     episodeTitle, translationType,
+    fetchSubtitles = true,
   }, batchId) {
     let resolvedBinaryPath = null;
 
@@ -467,6 +530,7 @@ function register(getMainWindowFn) {
         initialProgress: existing.progress_percent || 0,
         cookies: captured.cookies,
         referer: captured.referer,
+        fetchSubtitles,
       }, sendProgress, () => Array.from(downloadsStore.values()), updateDownloadEntry, updateDownload);
 
       if (result.ok) {
@@ -557,6 +621,7 @@ function register(getMainWindowFn) {
       downloadId,
       cookies: captured.cookies,
       referer: captured.referer,
+      fetchSubtitles,
     }, sendProgress, () => Array.from(downloadsStore.values()), updateDownloadEntry, updateDownload);
 
     if (result.ok) {
@@ -735,6 +800,7 @@ function register(getMainWindowFn) {
           initialProgress: 0,
           cookies: captured.cookies,
           referer: captured.referer,
+          fetchSubtitles: item.fetch_subtitles !== 0,
         }, sendProgress, () => Array.from(downloadsStore.values()), updateDownloadEntry, updateDownload);
 
         if (!result.ok) {
@@ -756,6 +822,7 @@ function register(getMainWindowFn) {
     const {
       type, mediaId, title, tmdbId, season, collectionId, items,
       sourceId, binaryToken, translationType, profileId, episodes,
+      fetchSubtitles = true,
     } = params;
     const { addBatch } = require('@nexube/store');
 
@@ -853,6 +920,7 @@ function register(getMainWindowFn) {
         collectionId: itemCollectionId,
         batchId,
         status: 'queued',
+        fetchSubtitles,
       });
       queued++;
     }
@@ -991,29 +1059,33 @@ function register(getMainWindowFn) {
 
       // Primary: vault_path (hash-based, always set for new downloads)
       if (download.vault_path) {
-        const vaultP = path.join(getVaultDir(), download.vault_path);
+        const vaultP = path.join(getVideoDir(), download.vault_path);
         console.log('[play] checking vault_path:', vaultP, 'exists:', fs.existsSync(vaultP));
         if (fs.existsSync(vaultP)) {
           const fileUrl = pathToFileURL(vaultP).toString();
           const result = { success: true, filePath: 'vault' + fileUrl.slice('file'.length) };
 
-          // Find subtitles by hash prefix in vault dir
-          const vaultDir = getVaultDir();
+          // Find subtitles in subtitle dir by hash prefix
           const hashPrefix = download.vault_path.replace(path.extname(download.vault_path), '');
+          const subDir = path.join(getSubtitleDir(), hashPrefix);
           try {
-            const subs = fs.readdirSync(vaultDir).filter(f => f.startsWith(hashPrefix + '.') && f.endsWith('.vtt'));
-            console.log('[play] VTT files found in vault:', subs.length, subs);
-            if (subs.length > 0) {
-              result.subtitles = subs.map(f => {
-                const absPath = path.join(vaultDir, f);
-                const subUrl = pathToFileURL(absPath).toString();
-                const lang = f.replace(hashPrefix + '.', '').replace('.vtt', '');
-                return {
-                  lang,
-                  file: 'vault' + subUrl.slice('file'.length),
-                  label: getLanguageName(lang),
-                };
-              });
+            if (fs.existsSync(subDir)) {
+              const subs = fs.readdirSync(subDir).filter(f => f.endsWith('.vtt') || f.endsWith('.srt'));
+              console.log('[play] Subtitle files found:', subs.length, subs);
+              if (subs.length > 0) {
+                const byLang = new Map();
+                for (const f of subs) {
+                  const absPath = path.join(subDir, f);
+                  const subUrl = pathToFileURL(absPath).toString();
+                  const ext = path.extname(f);
+                  const lang = f.replace(hashPrefix + '.', '').replace(ext, '');
+                  const entry = { lang, format: ext.slice(1), file: 'vault' + subUrl.slice('file'.length), label: getLanguageName(lang) };
+                  if (!byLang.has(lang) || entry.format === 'vtt') {
+                    byLang.set(lang, entry);
+                  }
+                }
+                result.subtitles = [...byLang.values()];
+              }
             }
           } catch (e) {
             console.warn('[play] Error reading vault subtitles:', e.message);
@@ -1034,15 +1106,17 @@ function register(getMainWindowFn) {
             ? path.join(path.dirname(download.remux_path), download.subtitles_path)
             : path.dirname(download.remux_path);
           try {
-            const subs = fs.readdirSync(subsDir).filter(f => f.endsWith('.vtt'));
+            const subs = fs.readdirSync(subsDir).filter(f => f.endsWith('.vtt') || f.endsWith('.srt'));
             if (subs.length > 0) {
               result.subtitles = subs.map(f => {
                 const absPath = path.join(subsDir, f);
                 const subUrl = pathToFileURL(absPath).toString();
+                const ext = path.extname(f);
                 return {
-                  lang: f.replace('.vtt', ''),
+                  lang: f.replace(ext, ''),
+                  format: ext.slice(1),
                   file: 'vault' + subUrl.slice('file'.length),
-                  label: getLanguageName(f.replace('.vtt', '')),
+                  label: getLanguageName(f.replace(ext, '')),
                 };
               });
             }
@@ -1126,6 +1200,163 @@ function register(getMainWindowFn) {
     }
   });
 
+  // ── Subtitle management ────────────────────────────────────────────────────
+  ipcMain.handle('desk-download:check-missing-subtitles', async (_, downloadIds) => {
+    try {
+      const results = [];
+      for (const id of downloadIds) {
+        const download = getDownload(id);
+        if (!download) continue;
+        let hasVtt = false;
+        if (download.vault_path) {
+          const hashPrefix = download.vault_path.replace(path.extname(download.vault_path), '');
+          const subDir = path.join(getSubtitleDir(), hashPrefix);
+          try {
+            if (fs.existsSync(subDir)) {
+              const files = fs.readdirSync(subDir);
+              hasVtt = files.some(f => f.endsWith('.vtt'));
+            }
+          } catch {}
+        } else if (download.remux_path) {
+          const subsDir = download.subtitles_path
+            ? path.join(path.dirname(download.remux_path), download.subtitles_path)
+            : path.dirname(download.remux_path);
+          try {
+            const files = fs.readdirSync(subsDir);
+            hasVtt = files.some(f => f.endsWith('.vtt'));
+          } catch {}
+        }
+        results.push({ id, hasSubtitles: hasVtt, title: download.title, season: download.season, episode: download.episode });
+      }
+      return { success: true, results };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:get-sources', async () => {
+    try {
+      const store = getStore();
+      const apiKey = store.get('wyzieApiKey');
+      if (!apiKey) return { success: false, sources: [], available: [], tiered: [] };
+      const data = await fetchSources(apiKey);
+      return { success: true, ...data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:fetch-subtitles', async (_, params) => {
+    try {
+      const downloadId = typeof params === 'string' ? params : params.downloadId;
+      const languages = typeof params === 'object' && params.languages ? params.languages : null;
+      const sources = typeof params === 'object' && params.sources ? params.sources : null;
+      const download = getDownload(downloadId);
+      if (!download) return { success: false, error: 'Download not found' };
+      if (!download.tmdb_id) return { success: false, error: 'No TMDB ID' };
+
+      const store = getStore();
+      const wyzieApiKey = store.get('wyzieApiKey');
+      const subdlApiKey = store.get('subdlApiKey');
+      const subtitleLanguages = languages || store.get('subtitleLanguages') || ['en'];
+      const subtitleSources = sources || store.get('subtitleSources') || 'all';
+      const subtitleProvider = store.get('subtitleProvider') || 'wyzie';
+
+      let targetDir = '';
+      let hashPrefix = '';
+
+      if (download.vault_path) {
+        hashPrefix = download.vault_path.replace(path.extname(download.vault_path), '');
+        targetDir = path.join(getSubtitleDir(), hashPrefix);
+      } else if (download.remux_path) {
+        targetDir = download.subtitles_path
+          ? path.join(path.dirname(download.remux_path), download.subtitles_path)
+          : path.dirname(download.remux_path);
+      }
+
+      if (subtitleProvider === 'subdl') {
+        if (!subdlApiKey) return { success: false, error: 'No SubDL API key configured' };
+        try {
+          const results = await searchSubDL({
+            tmdbId: download.tmdb_id,
+            type: download.type,
+            season: download.season,
+            episode: download.episode,
+            languages: subtitleLanguages,
+            apiKey: subdlApiKey,
+          });
+          if (results.length === 0) return { success: false, error: 'No subtitles found' };
+          const saved = await downloadAndSaveSubDLSubtitles(results, targetDir, hashPrefix);
+          return { success: true, count: saved.length, subtitles: saved };
+        } catch (e) {
+          return { success: false, error: `SubDL: ${e.message}` };
+        }
+      }
+
+      if (!wyzieApiKey) return { success: false, error: 'No Wyzie API key configured' };
+      try {
+        const results = await searchSubtitles({
+          tmdbId: download.tmdb_id,
+          type: download.type,
+          season: download.season,
+          episode: download.episode,
+          languages: subtitleLanguages,
+          sources: subtitleSources,
+          apiKey: wyzieApiKey,
+        });
+        if (results.length === 0) return { success: false, error: 'No subtitles found' };
+        const saved = await downloadAndSaveSubtitles(results, targetDir, hashPrefix);
+        return { success: true, count: saved.length, subtitles: saved };
+      } catch (e) {
+        return { success: false, error: `Wyzie: ${e.message}` };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Player progress tracking ────────────────────────────────────────────
+  ipcMain.handle('desk-download:get-progress', async (_, downloadId) => {
+    try {
+      const db = require('@nexube/store').getDatabase();
+      const row = db.prepare('SELECT watched_position, finished FROM downloads WHERE id = ?').get(downloadId);
+      if (!row) return { success: false, error: 'Download not found' };
+      return { success: true, watchedPosition: row.watched_position || 0, finished: !!row.finished };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:save-progress', async (_, downloadId, { position, finished }) => {
+    try {
+      const updates = {};
+      if (typeof position === 'number') updates.watchedPosition = position;
+      if (typeof finished === 'boolean') updates.finished = finished ? 1 : 0;
+      updateDownload(downloadId, updates);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:get-bulk-progress', async (_, downloadIds) => {
+    try {
+      if (!downloadIds || downloadIds.length === 0) return { success: true, results: {} };
+      const db = require('@nexube/store').getDatabase();
+      const placeholders = downloadIds.map(() => '?').join(',');
+      const rows = db.prepare(
+        `SELECT id, watched_position, finished FROM downloads WHERE id IN (${placeholders})`
+      ).all(...downloadIds);
+      const results = {};
+      for (const row of rows) {
+        results[row.id] = { watchedPosition: row.watched_position || 0, finished: !!row.finished };
+      }
+      return { success: true, results };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('desk-download:export-single', async (_, downloadId) => {
     try {
       const download = getDownload(downloadId);
@@ -1146,6 +1377,9 @@ function register(getMainWindowFn) {
       if (result.canceled || !result.filePath) return { success: false, canceled: true };
 
       fs.copyFileSync(sourcePath, result.filePath);
+      const destDir = path.dirname(result.filePath);
+      const videoBase = path.basename(result.filePath, path.extname(result.filePath));
+      copySubtitlesForDownload(download, destDir, videoBase);
       return { success: true, filePath: result.filePath };
     } catch (err) {
       return { success: false, error: err.message };
@@ -1166,30 +1400,84 @@ function register(getMainWindowFn) {
       let exported = 0;
       const errors = [];
 
+      const groups = {};
       for (const id of downloadIds) {
-        try {
-          const download = getDownload(id);
-          if (!download) { errors.push({ id, error: 'Not found' }); continue; }
-          const sourcePath = getDownloadFilePath(download);
-          if (!sourcePath) { errors.push({ id, error: 'File not found' }); continue; }
+        const download = getDownload(id);
+        if (!download) { errors.push({ id, error: 'Not found' }); continue; }
+        const key = download.title || 'Unknown';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(download);
+      }
 
-          const name = download.episode_name
-            ? `${download.title} - S${String(download.season || 1).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')} - ${download.episode_name}${path.extname(sourcePath)}`
-            : `${download.title}${path.extname(sourcePath)}`;
+      for (const [title, groupDownloads] of Object.entries(groups)) {
+        const isTv = groupDownloads.some(d => d.type === 'tv' || (d.season != null));
 
-          const sanitized = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
-          let destPath = path.join(destinationDir, sanitized);
-          let counter = 1;
-          while (fs.existsSync(destPath)) {
-            const ext = path.extname(sanitized);
-            const base = path.basename(sanitized, ext);
-            destPath = path.join(destinationDir, `${base} (${counter})${ext}`);
-            counter++;
+        if (isTv) {
+          const seriesDir = path.join(destinationDir, title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_'));
+
+          const seasons = {};
+          for (const download of groupDownloads) {
+            const s = download.season || 1;
+            if (!seasons[s]) seasons[s] = [];
+            seasons[s].push(download);
           }
-          fs.copyFileSync(sourcePath, destPath);
-          exported++;
-        } catch (e) {
-          errors.push({ id, error: e.message });
+
+          for (const [seasonNum, eps] of Object.entries(seasons)) {
+            const seasonDir = path.join(seriesDir, `Season ${seasonNum}`);
+            const subsDir = path.join(seasonDir, 'subtitles');
+            fs.mkdirSync(subsDir, { recursive: true });
+
+            for (const download of eps) {
+              try {
+                const sourcePath = getDownloadFilePath(download);
+                if (!sourcePath) { errors.push({ id: download.id, error: 'File not found' }); continue; }
+
+                const epLabel = `S${String(seasonNum).padStart(2, '0')}E${String(download.episode || 1).padStart(2, '0')}`;
+                const epName = download.episode_name
+                  ? `${epLabel} - ${download.episode_name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}${path.extname(sourcePath)}`
+                  : `${epLabel}${path.extname(sourcePath)}`;
+
+                let destPath = path.join(seasonDir, epName);
+                let counter = 1;
+                while (fs.existsSync(destPath)) {
+                  const ext = path.extname(epName);
+                  const base = path.basename(epName, ext);
+                  destPath = path.join(seasonDir, `${base} (${counter})${ext}`);
+                  counter++;
+                }
+                fs.copyFileSync(sourcePath, destPath);
+                copySubtitlesForDownload(download, subsDir, epLabel);
+                exported++;
+              } catch (e) {
+                errors.push({ id: download.id, error: e.message });
+              }
+            }
+          }
+        } else {
+          for (const download of groupDownloads) {
+            try {
+              const sourcePath = getDownloadFilePath(download);
+              if (!sourcePath) { errors.push({ id: download.id, error: 'File not found' }); continue; }
+
+              const name = `${download.title}${path.extname(sourcePath)}`;
+              const sanitized = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
+              let destPath = path.join(destinationDir, sanitized);
+              let counter = 1;
+              while (fs.existsSync(destPath)) {
+                const ext = path.extname(sanitized);
+                const base = path.basename(sanitized, ext);
+                destPath = path.join(destinationDir, `${base} (${counter})${ext}`);
+                counter++;
+              }
+              fs.copyFileSync(sourcePath, destPath);
+              const destDir = path.dirname(destPath);
+              const videoBase = path.basename(destPath, path.extname(destPath));
+              copySubtitlesForDownload(download, destDir, videoBase);
+              exported++;
+            } catch (e) {
+              errors.push({ id: download.id, error: e.message });
+            }
+          }
         }
       }
 
@@ -1557,7 +1845,7 @@ function register(getMainWindowFn) {
     const download = getDownload(downloadId);
     if (!download) return;
     if (download.vault_path) {
-      const vaultP = path.join(getVaultDir(), download.vault_path);
+      const vaultP = path.join(getVideoDir(), download.vault_path);
       if (fs.existsSync(vaultP)) shell.showItemInFolder(vaultP);
       return;
     }
@@ -1567,6 +1855,41 @@ function register(getMainWindowFn) {
     }
     const target = download.file_path || download.download_path;
     if (target && fs.existsSync(target)) shell.showItemInFolder(target);
+  });
+
+  function vaultUrlToPath(vaultUrl) {
+    const url = new URL(vaultUrl);
+    let filePath = decodeURIComponent(url.pathname);
+    if (url.hostname) {
+      if (process.platform === 'win32' && /^[a-zA-Z]$/.test(url.hostname)) {
+        filePath = `${url.hostname.toUpperCase()}:${filePath}`;
+      } else {
+        filePath = `/${url.hostname}${filePath}`;
+      }
+    }
+    return filePath;
+  }
+
+  ipcMain.handle('desk-download:read-subtitle', async (_, vaultUrl) => {
+    try {
+      const filePath = vaultUrlToPath(vaultUrl);
+      if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+      const text = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, text };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('desk-download:delete-subtitle', async (_, vaultUrl) => {
+    try {
+      const filePath = vaultUrlToPath(vaultUrl);
+      if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+      fs.unlinkSync(filePath);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // ── Vault-first migration ───────────────────────────────────────────────────
@@ -1589,20 +1912,21 @@ function register(getMainWindowFn) {
     const organized = db.prepare(
       `SELECT id, remux_path FROM downloads WHERE status = 'completed' AND remux_path IS NOT NULL AND vault_path IS NULL`
     ).all();
-    const vaultDir = getVaultDir();
     for (const row of organized) {
       if (!row.remux_path || !fs.existsSync(row.remux_path)) continue;
       try {
         const name = moveToVault(row.id, row.remux_path);
         updateDownload(row.id, { vaultPath: name, remuxPath: null, filePath: null });
-        // Move subtitle files from organized dir to vault
+        // Move subtitle files from organized dir to vault subtitle dir
         const remuxDir = path.dirname(row.remux_path);
         if (fs.existsSync(remuxDir)) {
           const hashPrefix = name.replace(path.extname(name), '');
+          const subDir = path.join(getSubtitleDir(), hashPrefix);
+          fs.mkdirSync(subDir, { recursive: true });
           for (const f of fs.readdirSync(remuxDir)) {
             if (f.endsWith('.vtt')) {
               const src = path.join(remuxDir, f);
-              const dest = path.join(vaultDir, `${hashPrefix}.${f}`);
+              const dest = path.join(subDir, f);
               try { fs.copyFileSync(src, dest); } catch {}
             }
           }
@@ -1613,6 +1937,37 @@ function register(getMainWindowFn) {
       }
     }
   } catch {}
+
+  // 3. Migrate existing flat vault files to new video/subtitle structure
+  try {
+    const flatVaultDir = getVaultDir();
+    const videoDir = getVideoDir();
+    const subDir = getSubtitleDir();
+    if (fs.existsSync(flatVaultDir)) {
+      fs.mkdirSync(videoDir, { recursive: true });
+      fs.mkdirSync(subDir, { recursive: true });
+      for (const entry of fs.readdirSync(flatVaultDir, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        const src = path.join(flatVaultDir, entry.name);
+        if (entry.name.endsWith('.mp4') || entry.name.endsWith('.mkv') || entry.name.endsWith('.avi')) {
+          const dest = path.join(videoDir, entry.name);
+          if (!fs.existsSync(dest)) fs.renameSync(src, dest);
+        } else if (entry.name.endsWith('.vtt') || entry.name.endsWith('.srt')) {
+          // Format: hashPrefix.langCode.ext — extract hash prefix to create subdir
+          const parts = entry.name.split('.');
+          if (parts.length >= 3) {
+            const hashPrefix = parts[0];
+            const hashSubDir = path.join(subDir, hashPrefix);
+            fs.mkdirSync(hashSubDir, { recursive: true });
+            const dest = path.join(hashSubDir, entry.name);
+            if (!fs.existsSync(dest)) fs.renameSync(src, dest);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[migration] failed to migrate flat vault to structured:', e.message);
+  }
 
   // Cleanup stale staging files
   try {

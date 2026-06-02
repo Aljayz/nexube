@@ -307,6 +307,7 @@ function startDownload({
   initialProgress,
   cookies,
   referer,
+  fetchSubtitles = true,
 }, sendProgress, getDownloads, updateDownloadEntry, persistDownload) {
   try {
     name = sanitizeFilename(name);
@@ -337,6 +338,7 @@ function startDownload({
       episode: episode || null,
       posterPath: posterPath || null,
       tmdbId: tmdbId || mediaId || null,
+      fetchSubtitles,
       logPath,
       _lastProgressTime: Date.now(),
       _paused: false,
@@ -563,6 +565,7 @@ function startDownload({
           size: entry.size,
           lastMessage: entry.lastMessage,
           logPath: entry.logPath,
+          fetchSubtitles: entry.fetchSubtitles,
         });
         persistProgress();
       };
@@ -605,7 +608,7 @@ function handleMessage(msg, entry, sendProgress, persistProgress, id, appendLog)
           console.warn('[remux] finished handler scan failed:', e.message);
         }
       }
-      sendProgress({ id, status: 'completed', progress: 100, filePath: entry.filePath, lastMessage: 'Completed' });
+      sendProgress({ id, status: 'completed', progress: 100, filePath: entry.filePath, lastMessage: 'Completed', fetchSubtitles: entry.fetchSubtitles });
       persistProgress();
       return;
     }
@@ -652,7 +655,7 @@ function handleMessage(msg, entry, sendProgress, persistProgress, id, appendLog)
     entry.completedAt = Date.now();
     entry.lastMessage = 'Completed';
     entry._lastProgressTime = Date.now();
-    sendProgress({ id, status: 'completed', progress: 100, filePath: msg.filepath, lastMessage: 'Completed' });
+    sendProgress({ id, status: 'completed', progress: 100, filePath: msg.filepath, lastMessage: 'Completed', fetchSubtitles: entry.fetchSubtitles });
     persistProgress();
     if (entry._stdin) {
       try { entry._stdin.end(); } catch {}

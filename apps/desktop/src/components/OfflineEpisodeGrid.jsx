@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
-import { Play, Download, Trash2 } from 'lucide-react';
+import { Play, Download, Trash2, CheckCircle } from 'lucide-react';
 
-export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, onExport, onRequestDelete }) {
+export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, onExport, onRequestDelete, episodeProgress }) {
   const seasons = [...new Set(items.map((d) => d.season).filter((s) => s != null))].sort((a, b) => a - b);
 
   return (
@@ -17,6 +17,7 @@ export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, on
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-md mb-lg">
               {seasonEps.map((ep) => {
                 const isActive = ep.id === currentEpisodeId;
+                const isFinished = episodeProgress?.[ep.id]?.finished;
                 return (
                   <div
                     key={ep.id}
@@ -27,6 +28,11 @@ export default function OfflineEpisodeGrid({ items, currentEpisodeId, onPlay, on
                       <div className="w-full h-full flex items-center justify-center">
                         <Play className="w-6 h-6 text-text-muted" />
                       </div>
+                      {isFinished && (
+                        <div className="absolute top-1 right-1 z-10">
+                          <CheckCircle className="w-5 h-5 text-success drop-shadow-lg" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                         <div className="w-8 h-8 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
                           <Play className="w-4 h-4 text-background ml-0.5" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useDetailData } from '../hooks/useDetailData';
 import { usePlayer } from '../hooks/usePlayer';
@@ -46,6 +46,15 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
     toggleSaved,
     updateSelectedSource,
   } = useDetailData(media, profileId, retryCount, activeProfile?.preferredSource, activeProfile?.isKids);
+
+  const isUnreleased = useMemo(() => {
+    if (!details) return false;
+    const status = details.status;
+    if (media.type === 'movie') {
+      return status && status !== 'Released';
+    }
+    return status && !['Released', 'Returning Series', 'Ended'].includes(status);
+  }, [details, media.type]);
 
   const [dubMode, setDubMode] = useState(() => {
     try {
@@ -173,6 +182,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
         onToggleSaved={toggleSaved}
         onShowTrailerList={() => setShowTrailerList(true)}
         onShowDownload={setShowDownload}
+        isUnreleased={isUnreleased}
       />
 
       <div className="border-t border-border/50 mt-16 mb-xl" />
@@ -186,7 +196,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
         </div>
 
         <div className="px-xl space-y-xl">
-          <PlayerSection
+          {!isUnreleased && <PlayerSection
           details={details}
           mediaType={media.type}
           currentEpisode={currentEpisode}
@@ -230,7 +240,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
           onNextEpisode={() => handleEpisodeNavigation(1)}
           onClose={handleClosePlayer}
           onDownload={() => setShowDownload(true)}
-        />
+        />}
 
         {trailerUrl && (
           <div>
@@ -257,7 +267,26 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
           </div>
         )}
 
-        {media.type === 'tv' && seasons.length > 0 && (
+        {media.type === 'tv' && seasons.length > 0 && (isUnreleased ? (
+          <div className="mt-2xl pt-xl border-t border-border/50">
+            <h2 className="text-lg font-bold text-text-primary mb-md">Seasons</h2>
+            {seasons.length > 1 ? (
+              <select
+                value={selectedSeason}
+                onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                className="bg-surface text-text-primary border border-border rounded-button px-md py-sm text-sm focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+              >
+                {seasons.map((s) => (
+                  <option key={s.season_number} value={s.season_number}>
+                    Season {s.season_number}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-text-muted text-sm">Season 1</p>
+            )}
+          </div>
+        ) : (
           <EpisodeGrid
             seasons={seasons}
             selectedSeason={selectedSeason}
@@ -265,7 +294,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
             onSeasonChange={setSelectedSeason}
             onPlayEpisode={handlePlay}
           />
-        )}
+        ))}
         </div>
 
         {relatedMovies.length > 0 && (

@@ -131,9 +131,17 @@ contextBridge.exposeInMainWorld('electron', {
     scan: (params) => ipcRenderer.invoke('desk-download:scan', params),
     showInFolder: (downloadId) => ipcRenderer.invoke('desk-download:show-in-folder', downloadId),
     readLog: (logPath) => ipcRenderer.invoke('desk-download:read-log', logPath),
-    exportSingle: (id) => ipcRenderer.invoke('desk-download:export-single', id),
+     exportSingle: (id) => ipcRenderer.invoke('desk-download:export-single', id),
+     checkMissingSubtitles: (ids) => ipcRenderer.invoke('desk-download:check-missing-subtitles', ids),
+     fetchSubtitles: (id) => ipcRenderer.invoke('desk-download:fetch-subtitles', id),
+     getProgress: (id) => ipcRenderer.invoke('desk-download:get-progress', id),
+     saveProgress: (id, data) => ipcRenderer.invoke('desk-download:save-progress', id, data),
+     getBulkProgress: (ids) => ipcRenderer.invoke('desk-download:get-bulk-progress', ids),
     exportBulk: (params) => ipcRenderer.invoke('desk-download:export-bulk', params),
-    getVaultInfo: (id) => ipcRenderer.invoke('desk-download:get-vault-info', id),
+     getVaultInfo: (id) => ipcRenderer.invoke('desk-download:get-vault-info', id),
+     readSubtitle: (vaultUrl) => ipcRenderer.invoke('desk-download:read-subtitle', vaultUrl),
+     deleteSubtitle: (vaultUrl) => ipcRenderer.invoke('desk-download:delete-subtitle', vaultUrl),
+     getSources: () => ipcRenderer.invoke('desk-download:get-sources'),
      onProgress: (callback) => {
        const handler = (_, data) => callback(data);
        ipcRenderer.on('desk-download:progress', handler);

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Check, Eye, EyeOff, Lock, ExternalLink, Subtitles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Check, Eye, EyeOff, Lock, ExternalLink, Subtitles, Globe, Loader2, ChevronDown } from 'lucide-react';
 
 const LANGUAGE_OPTIONS = [
   { code: 'en', label: 'English' },
@@ -31,8 +31,14 @@ export default function GeneralSettings({
   activeProfile,
   wyzieApiKey,
   setWyzieApiKey,
+  subdlApiKey,
+  setSubdlApiKey,
   subtitleLanguages,
   setSubtitleLanguages,
+  subtitleSources,
+  setSubtitleSources,
+  subtitleProvider,
+  setSubtitleProvider,
 }) {
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
@@ -45,6 +51,87 @@ export default function GeneralSettings({
   const [wyzieKeySaved, setWyzieKeySaved] = useState(false);
   const [wyzieRedeeming, setWyzieRedeeming] = useState(false);
   const [wyzieError, setWyzieError] = useState('');
+  const [subdlKeySaved, setSubdlKeySaved] = useState(false);
+  const [subdlError, setSubdlError] = useState('');
+  const [langOpen, setLangOpen] = useState(false);
+  const [availableSources, setAvailableSources] = useState([]);
+  const [sourcesTiered, setSourcesTiered] = useState([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [selectedSources, setSelectedSources] = useState(subtitleSources === 'all' ? [] : subtitleSources.split(','));
+  const langRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (langRef.current && !langRef.current.contains(e.target)) {
+        setLangOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!wyzieApiKey.trim()) return;
+    (async () => {
+      setSourcesLoading(true);
+      try {
+        const result = await window.electron?.deskDownloads?.getSources();
+        if (result?.success) {
+          const freeKeys = Array.isArray(result.free) ? result.free : [];
+          const tiered = Array.isArray(result.tiered) ? result.tiered : [];
+          const tieredMap = {};
+          tiered.forEach((s) => { tieredMap[s.key] = s; });
+          const freeSources = freeKeys.map((key) =>
+            tieredMap[key] || { key, name: key, tier: 'free', available: true }
+          );
+          setAvailableSources(freeKeys);
+          setSourcesTiered(freeSources);
+          if (!subtitleSources || subtitleSources === 'all') {
+            setSelectedSources(freeKeys);
+          } else {
+            setSelectedSources(subtitleSources.split(','));
+          }
+        }
+      } catch {}
+      setSourcesLoading(false);
+    })();
+  }, [wyzieApiKey]);
+
+  const handleToggleSource = (sourceKey) => {
+    setSelectedSources((prev) => {
+      const next = prev.includes(sourceKey)
+        ? prev.filter((s) => s !== sourceKey)
+        : [...prev, sourceKey];
+      return next;
+    });
+  };
+
+  const handleToggleAllSources = () => {
+    if (selectedSources.length === availableSources.length) {
+      setSelectedSources([]);
+    } else {
+      setSelectedSources([...availableSources]);
+    }
+  };
+
+  const handleSetProvider = async (provider) => {
+    setSubtitleProvider(provider);
+    await window.electron?.storage?.set('subtitleProvider', provider);
+    setSaveStatus((prev) => ({ ...prev, subtitleProvider: 'saved' }));
+    setTimeout(() => setSaveStatus((prev) => ({ ...prev, subtitleProvider: null })), 2000);
+  };
+
+  const handleSaveSources = async () => {
+    const value = selectedSources.length === availableSources.length ? 'all' : selectedSources.join(',');
+    try {
+      await window.electron?.storage?.set('subtitleSources', value);
+      setSubtitleSources(value);
+      setSaveStatus((prev) => ({ ...prev, subtitleSources: 'saved' }));
+      setTimeout(() => setSaveStatus((prev) => ({ ...prev, subtitleSources: null })), 2000);
+    } catch {
+      setSaveStatus((prev) => ({ ...prev, subtitleSources: 'error' }));
+    }
+  };
 
   const handleSaveApiKey = async () => {
     setApiKeyLoading(true);
@@ -52,16 +139,12 @@ export default function GeneralSettings({
     setApiKeySaved(false);
 
     try {
-      if (!apiKey.trim()) {
-        throw new Error('API key cannot be empty');
-      }
+      if (!apiKey.trim()) throw new Error('API key cannot be empty');
 
       await window.electron?.storage?.set('tmdbApiKey', apiKey.trim());
       const result = await window.electron?.tmdb?.fetch('/authentication', {});
 
-      if (!result) {
-        throw new Error('Failed to validate API key');
-      }
+      if (!result) throw new Error('Failed to validate API key');
 
       setApiKeySaved(true);
       setApiKeyVisible(false);
@@ -133,6 +216,18 @@ export default function GeneralSettings({
     }
   };
 
+  const handleSaveSubdlKey = async () => {
+    try {
+      if (!subdlApiKey.trim()) throw new Error('API key cannot be empty');
+      await window.electron?.storage?.set('subdlApiKey', subdlApiKey.trim());
+      setSubdlKeySaved(true);
+      setTimeout(() => setSubdlKeySaved(false), 3000);
+    } catch (err) {
+      setSubdlError(err.message);
+      setTimeout(() => setSubdlError(''), 3000);
+    }
+  };
+
   const handleWyzieRedeem = async () => {
     if (!window.electron?.wyzie) return;
     setWyzieRedeeming(true);
@@ -173,6 +268,9 @@ export default function GeneralSettings({
       setSaveStatus((prev) => ({ ...prev, subtitleLangs: 'error' }));
     }
   };
+
+  const activeBtn = 'bg-accent text-background border-accent';
+  const inactiveBtn = 'bg-surface text-text-muted border-border hover:border-accent';
 
   return (
     <div className="space-y-lg">
@@ -299,28 +397,84 @@ export default function GeneralSettings({
         {wyzieError && (
           <p className="text-danger text-sm mt-sm">{wyzieError}</p>
         )}
+      </div>
 
-        <hr className="border-border my-md" />
+      <div className="bg-surface rounded-card p-lg border border-border">
+        <div className="flex items-center gap-sm mb-md">
+          <Subtitles className="w-5 h-5 text-accent" />
+          <h2 className="text-lg font-bold text-text-primary">SubDL Subtitles</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-md">
+          Add a free SubDL API key for an additional subtitle source. Get one at <a href="https://subdl.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">subdl.com</a>.
+        </p>
+        {subdlError && (
+          <p className="text-danger text-sm mb-md">{subdlError}</p>
+        )}
+        <div className="flex gap-md">
+          <input
+            type="password"
+            value={subdlApiKey}
+            onChange={(e) => {
+              setSubdlApiKey(e.target.value);
+              setSubdlKeySaved(false);
+            }}
+            placeholder="Enter your SubDL API key"
+            className="input-field flex-1"
+          />
+          <button
+            onClick={handleSaveSubdlKey}
+            className="btn-primary disabled:opacity-50"
+          >
+            {subdlKeySaved ? (
+              <span className="flex items-center gap-sm">
+                <Check className="w-4 h-4" /> Saved
+              </span>
+            ) : 'Save'}
+          </button>
+        </div>
+      </div>
 
+      <div className="bg-surface rounded-card p-lg border border-border">
         <h3 className="text-md font-semibold text-text-primary mb-sm">Subtitle Languages</h3>
         <p className="text-sm text-text-muted mb-md">
           Select the languages you want to download subtitles for.
         </p>
-        <div className="flex flex-wrap gap-sm mb-md">
-          {LANGUAGE_OPTIONS.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => handleToggleLanguage(lang.code)}
-              className={`px-sm py-xs rounded-md text-sm border transition-colors ${
-                subtitleLanguages.includes(lang.code)
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-surface text-text-muted border-border hover:border-accent'
-              }`}
-            >
-              {lang.label}
-            </button>
-          ))}
+
+        <div className="relative mb-md" ref={langRef}>
+          <button
+            onClick={() => setLangOpen((v) => !v)}
+            className="w-full flex items-center gap-sm px-sm py-sm rounded border border-border bg-background text-text-primary text-sm hover:border-accent transition-colors text-left"
+          >
+            <Globe className="w-4 h-4 shrink-0 text-text-muted" />
+            <span className="flex-1 truncate">
+              {subtitleLanguages.length === 0
+                ? 'Select languages'
+                : subtitleLanguages.length === 1
+                  ? LANGUAGE_OPTIONS.find((l) => l.code === subtitleLanguages[0])?.label || subtitleLanguages[0]
+                  : `${subtitleLanguages.length} languages selected`}
+            </span>
+            <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${langOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {langOpen && (
+            <div className="absolute top-full left-0 right-0 mt-xs z-10 bg-surface border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto">
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <label
+                  key={lang.code}
+                  className="flex items-center gap-sm px-sm py-2xs hover:bg-background cursor-pointer text-sm text-text-primary transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={subtitleLanguages.includes(lang.code)}
+                    onChange={() => handleToggleLanguage(lang.code)}
+                    className="w-3.5 h-3.5 accent-accent"
+                  />
+                  {lang.label}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
+
         {saveStatus.subtitleLangs === 'error' && (
           <p className="text-danger text-sm mb-md">Select at least one language.</p>
         )}
@@ -331,6 +485,97 @@ export default function GeneralSettings({
             </span>
           ) : 'Save Languages'}
         </button>
+
+        <hr className="border-border my-md" />
+
+        <h3 className="text-md font-semibold text-text-primary mb-sm">Subtitle Provider</h3>
+        <p className="text-sm text-text-muted mb-md">
+          Choose which subtitle service to use when fetching subtitles.
+        </p>
+        <div className="flex gap-sm mb-md">
+          <button
+            onClick={() => handleSetProvider('wyzie')}
+            className={`px-md py-sm rounded-button text-sm border transition-colors ${
+              subtitleProvider === 'wyzie' ? activeBtn : inactiveBtn
+            }`}
+          >
+            Wyzie
+          </button>
+          <button
+            onClick={() => handleSetProvider('subdl')}
+            className={`px-md py-sm rounded-button text-sm border transition-colors ${
+              subtitleProvider === 'subdl' ? activeBtn : inactiveBtn
+            }`}
+          >
+            SubDL
+          </button>
+        </div>
+        {saveStatus.subtitleProvider === 'saved' && (
+          <p className="text-success text-sm mb-md">Provider saved.</p>
+        )}
+
+        <hr className="border-border my-md" />
+
+        <h3 className="text-md font-semibold text-text-primary mb-sm flex items-center gap-sm">
+          <Globe className="w-4 h-4 text-accent" />
+          Subtitle Sources
+        </h3>
+        <p className="text-sm text-text-muted mb-md">
+          Choose which providers to search for subtitles.
+        </p>
+        {sourcesLoading ? (
+          <div className="flex items-center gap-sm text-text-muted text-sm mb-md">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Loading sources...</span>
+          </div>
+        ) : availableSources.length > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-sm mb-md">
+              <button
+                onClick={handleToggleAllSources}
+                className={`px-sm py-xs rounded-md text-sm border transition-colors ${
+                  selectedSources.length === availableSources.length
+                    ? activeBtn
+                    : inactiveBtn
+                }`}
+              >
+                All Sources
+              </button>
+              {sourcesTiered.map((s) => {
+                const isAvailable = s.available !== false;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => handleToggleSource(s.key)}
+                    className={`px-sm py-xs rounded-md text-sm border transition-colors flex items-center gap-1 ${
+                      selectedSources.includes(s.key)
+                        ? isAvailable
+                          ? activeBtn
+                          : 'bg-accent/40 text-background/70 border-accent/40'
+                        : inactiveBtn
+                    }`}
+                    title={!isAvailable ? 'Requires a Pro key' : s.name}
+                  >
+                    {s.name}
+                    {!isAvailable && <Lock className="w-3 h-3" />}
+                  </button>
+                );
+              })}
+            </div>
+            {saveStatus.subtitleSources === 'error' && (
+              <p className="text-danger text-sm mb-md">Failed to save sources.</p>
+            )}
+            <button onClick={handleSaveSources} className="btn-primary">
+              {saveStatus.subtitleSources === 'saved' ? (
+                <span className="flex items-center gap-sm">
+                  <Check className="w-4 h-4" /> Saved
+                </span>
+              ) : 'Save Sources'}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-text-muted mb-md">Save a Wyzie API key to load available sources.</p>
+        )}
       </div>
 
       <div className="bg-surface rounded-card p-lg border border-border">

@@ -9,7 +9,10 @@ function getStore() {
       defaults: {
         tmdbApiKey: '',
         wyzieApiKey: '',
+        subdlApiKey: '',
         subtitleLanguages: ['en'],
+        subtitleSources: 'all',
+        subtitleProvider: 'wyzie',
         lastProfile: 'master-id',
         preferredSource: 'videasy',
         settings: {},
@@ -49,6 +52,15 @@ function register() {
 
   ipcMain.handle('storage:set-wyzie-key', async (_, value) => {
     getStore().set('wyzieApiKey', value);
+    return true;
+  });
+
+  ipcMain.handle('storage:get-subdl-key', async () => {
+    return getStore().get('subdlApiKey', '');
+  });
+
+  ipcMain.handle('storage:set-subdl-key', async (_, value) => {
+    getStore().set('subdlApiKey', value);
     return true;
   });
 }

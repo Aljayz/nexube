@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Download, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv, FileText } from 'lucide-react';
+import { Download, FileDown, CheckCircle, AlertCircle, Play, Trash2, Loader2, FolderOpen, StopCircle, PauseCircle, X, Search, Film, Tv, FileText } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import { useDownloads } from '../hooks/useDownloads';
 import LocalPlayer from '../components/LocalPlayer';
@@ -83,6 +83,14 @@ function DownloadsPage({ activeProfile }) {
 
   const handleCancelDelete = useCallback(() => {
     setConfirmDelete(null);
+  }, []);
+
+  const handleDirectDelete = useCallback((id) => {
+    setRetryCount((c) => c + 1);
+  }, []);
+
+  const handleDirectDeleteAll = useCallback((ids) => {
+    setRetryCount((c) => c + 1);
   }, []);
 
   const handleOpenFolder = useCallback(async (download) => {
@@ -218,6 +226,8 @@ function DownloadsPage({ activeProfile }) {
             onBack={() => setOfflineDetail(null)}
             onRequestDelete={handleDelete}
             onRequestDeleteAll={handleDeleteAll}
+            onDelete={handleDirectDelete}
+            onDeleteAll={handleDirectDeleteAll}
           />
         </div>
       ) : loading ? (
@@ -693,21 +703,23 @@ function DownloadsPage({ activeProfile }) {
                           <Film className="w-8 h-8 text-text-muted" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
-                          <Play className="w-5 h-5 text-background ml-0.5" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-accent/90 flex items-center justify-center hover:bg-accent transition-colors">
+                          <Play className="w-6 h-6 text-background ml-0.5" />
                         </div>
-                        <div
-                          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); handleExport(card.items[0].id); }}
-                        >
-                          <Download className="w-4 h-4 text-background" />
-                        </div>
-                        <div
-                          className="w-10 h-10 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(card.items[0].id); }}
-                        >
-                          <Trash2 className="w-5 h-5 text-background" />
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleExport(card.items[0].id); }}
+                          >
+                            <FileDown className="w-3.5 h-3.5 text-background" />
+                          </div>
+                          <div
+                            className="w-7 h-7 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(card.items[0].id); }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-background" />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -744,15 +756,23 @@ function DownloadsPage({ activeProfile }) {
                           <Tv className="w-8 h-8 text-text-muted" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <div className="w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center">
-                          <Play className="w-5 h-5 text-background ml-0.5" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-accent/90 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-background ml-0.5" />
                         </div>
-                        <div
-                          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); handleBulkExport(card.items.map((d) => d.id)); }}
-                        >
-                          <Download className="w-4 h-4 text-background" />
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleBulkExport(card.items.map((d) => d.id)); }}
+                          >
+                            <FileDown className="w-3.5 h-3.5 text-background" />
+                          </div>
+                          <div
+                            className="w-7 h-7 rounded-full bg-danger/90 flex items-center justify-center hover:bg-danger transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteAll(card.items.map((d) => d.id)); }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-background" />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -811,7 +831,7 @@ function DownloadsPage({ activeProfile }) {
             <h3 className="text-base font-semibold text-text-primary mb-sm">Confirm Delete</h3>
             <p className="text-sm text-text-muted mb-lg">
               {confirmDelete.ids
-                ? `Are you sure you want to delete all ${confirmDelete.ids.length} downloads?`
+                ? `This will permanently delete all ${confirmDelete.ids.length} files under this series. Continue?`
                 : 'Are you sure you want to delete this download?'}
             </p>
             <div className="flex items-center justify-end gap-sm">

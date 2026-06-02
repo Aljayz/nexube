@@ -282,6 +282,15 @@ function migrateDatabase(): void {
     try {
       db!.exec('ALTER TABLE downloads ADD COLUMN subtitles_path TEXT');
     } catch {}
+    try {
+      db!.exec("ALTER TABLE downloads ADD COLUMN fetch_subtitles INTEGER DEFAULT 1");
+    } catch {}
+    try {
+      db!.exec("ALTER TABLE downloads ADD COLUMN watched_position INTEGER DEFAULT 0");
+    } catch {}
+    try {
+      db!.exec("ALTER TABLE downloads ADD COLUMN finished INTEGER DEFAULT 0");
+    } catch {}
 
     try {
       const ddl = db!.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='downloads'").get() as { sql: string } | undefined;
@@ -721,10 +730,11 @@ export function addDownload(download: {
   collectionId?: number;
   batchId?: string;
   status?: string;
+  fetchSubtitles?: boolean;
 }): void {
   db!.prepare(
-    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, collection_id, batch_id, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO downloads (id, profile_id, media_id, quality, m3u8_url, referer, cookies, download_path, season, episode, episode_name, source_id, collection_id, batch_id, status, fetch_subtitles)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     download.id,
     download.profileId,
@@ -740,7 +750,8 @@ export function addDownload(download: {
     download.sourceId || null,
     download.collectionId || null,
     download.batchId || null,
-    download.status || 'downloading'
+    download.status || 'downloading',
+    download.fetchSubtitles != null ? (download.fetchSubtitles ? 1 : 0) : 1
   );
 }
 
@@ -821,6 +832,8 @@ export function updateDownload(id: string, updates: {
   m3u8Url?: string;
   referer?: string;
   cookies?: string;
+  watchedPosition?: number;
+  finished?: number;
 }): void {
   const fields: string[] = [];
   const values: any[] = [];
@@ -837,6 +850,8 @@ export function updateDownload(id: string, updates: {
   if (updates.subtitlesPath !== undefined) { fields.push('subtitles_path = ?'); values.push(updates.subtitlesPath); }
   if (updates.size !== undefined) { fields.push('size = ?'); values.push(updates.size); }
   if (updates.processId !== undefined) { fields.push('process_id = ?'); values.push(updates.processId); }
+  if (updates.watchedPosition !== undefined) { fields.push('watched_position = ?'); values.push(updates.watchedPosition); }
+  if (updates.finished !== undefined) { fields.push('finished = ?'); values.push(updates.finished); }
   if (updates.startedAt !== undefined) { fields.push('started_at = ?'); values.push(updates.startedAt); }
   if (updates.completedAt !== undefined) { fields.push('completed_at = ?'); values.push(updates.completedAt); }
   if (updates.episodeName !== undefined) { fields.push('episode_name = ?'); values.push(updates.episodeName); }

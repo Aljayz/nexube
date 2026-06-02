@@ -37,6 +37,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const [selectedEpisodes, setSelectedEpisodes] = useState(new Set());
   const [selectedCollectionItems, setSelectedCollectionItems] = useState(new Set());
   const [wyzieKeyMissing, setWyzieKeyMissing] = useState(false);
+  const [fetchSubtitles, setFetchSubtitles] = useState(true);
   const abortRef = useRef(false);
 
   useEffect(() => {
@@ -175,6 +176,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
       sourceId: selectedSource,
       binaryToken: usingBundled ? null : downloader.token,
       translationType: selectedSource === 'allmanga' ? translationType : undefined,
+      fetchSubtitles,
     });
 
     if (result?.success) {
@@ -248,6 +250,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
         sourceId: selectedSource,
         binaryToken: usingBundled ? null : downloader.token,
         translationType: selectedSource === 'allmanga' ? translationType : undefined,
+        fetchSubtitles,
       };
     } else {
       const selectedEpData = episodes
@@ -263,6 +266,7 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
         sourceId: selectedSource,
         binaryToken: usingBundled ? null : downloader.token,
         translationType: selectedSource === 'allmanga' ? translationType : undefined,
+        fetchSubtitles,
       };
     }
 
@@ -394,6 +398,16 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
               ))}
             </select>
           </div>
+
+          <label className="flex items-center gap-sm mb-lg cursor-pointer">
+            <input
+              type="checkbox"
+              checked={fetchSubtitles}
+              onChange={(e) => setFetchSubtitles(e.target.checked)}
+              className="accent-accent"
+            />
+            <span className="text-sm text-text-primary">Download subtitles after completion</span>
+          </label>
 
           {selectedSource === 'vidsrc' && (
             <div className="mb-lg p-md bg-background border border-border rounded-card">
