@@ -209,4 +209,11 @@ html[data-player-fullscreen] body {
   .blocked-modal-footer strong {
     color: #c0c0c0;
   }
+  .blocked-modal-engine {
+    margin-top: -4px;
+    padding: 0 20px 14px;
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+  }
 }

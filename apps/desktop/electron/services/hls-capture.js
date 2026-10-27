@@ -1,94 +1,17 @@
 const { BrowserWindow, session } = require('electron');
-
-const BLOCKED_HOSTS = [
-  '*://www.google-analytics.com/*',
-  '*://analytics.google.com/*',
-  '*://googletagmanager.com/*',
-  '*://www.googletagmanager.com/*',
-  '*://googletagservices.com/*',
-  '*://doubleclick.net/*',
-  '*://*.doubleclick.net/*',
-  '*://adservice.google.com/*',
-  '*://adservice.google.de/*',
-  '*://pagead2.googlesyndication.com/*',
-  '*://stats.g.doubleclick.net/*',
-  '*://cdn.adx1.com/*',
-  '*://intelligenceadx.com/*',
-  '*://adsco.re/*',
-  '*://mc.yandex.com/*',
-  '*://mc.yandex.ru/*',
-  '*://bvtpk.com/*',
-  '*://my.rtmark.net/*',
-  '*://b7510.com/*',
-  '*://gt.unbrownunflat.com/*',
-  '*://im.malocacomals.com/*',
-  '*://users.videasy.net/*',
-  '*://nf.sixmossin.com/*',
-  '*://realizationnewestfangs.com/*',
-  '*://acscdn.com/*',
-  '*://lt.taloseempest.com/*',
-  '*://pl26708123.profitableratecpm.com/*',
-  '*://preferencenail.com/*',
-  '*://protrafficinspector.com/*',
-  '*://s10.histats.com/*',
-  '*://weirdopt.com/*',
-  '*://static.cloudflareinsights.com/*',
-  '*://kettledroopingcontinuation.com/*',
-  '*://wayfarerorthodox.com/*',
-  '*://woxaglasuy.net/*',
-  '*://adeptspiritual.com/*',
-  '*://www.calculating-laugh.com/*',
-  '*://amavhxdlofklxjg.xyz/*',
-  '*://7jtjubf8p5kq7x3z2.u3qleufcm6vure326ktfpbj.cfd/*',
-  '*://5mq.get64t9vqg8pnbex1y463o.rest/*',
-  '*://usrpubtrk.com/*',
-  '*://adexchangeclear.com/*',
-  '*://rzjzjnavztycv.online/*',
-  '*://tmstr4.cloudnestra.com/*',
-  '*://tmstr4.neonhorizonworkshops.com/*',
-  '*://cloudnestra.com/prorcp*',
-];
+const adblocker = require('./adblocker');
 
 let captureSession = null;
 
-function createCaptureSession() {
-  const s = session.fromPartition('persist:player');
-  s.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
-    const headers = { ...details.responseHeaders };
-    delete headers['content-security-policy'];
-    delete headers['x-frame-options'];
-    callback({ responseHeaders: headers });
-  });
-  s.webRequest.onBeforeRequest({ urls: BLOCKED_HOSTS }, (_, cb) => cb({ cancel: true }));
-  return s;
-}
-
 function getCaptureSession() {
-  if (!captureSession) captureSession = createCaptureSession();
+  if (!captureSession) captureSession = session.fromPartition('persist:player');
   return captureSession;
 }
 
+// Used only for debugger logging; the shared adblocker service performs the
+// actual blocking before requests reach the capture observer.
 function isBlockedHost(url) {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname;
-    const path = parsed.pathname;
-    return BLOCKED_HOSTS.some((pat) => {
-      const withoutScheme = pat.replace(/^\*:\/\//, '');
-      const slashIdx = withoutScheme.indexOf('/');
-      const patHost = slashIdx === -1 ? withoutScheme : withoutScheme.substring(0, slashIdx);
-      const patPath = slashIdx === -1 ? '' : withoutScheme.substring(slashIdx);
-      const hostMatch = patHost.startsWith('*.')
-        ? host === patHost.slice(2) || host.endsWith('.' + patHost.slice(2))
-        : host === patHost;
-      if (!hostMatch) return false;
-      if (patPath) {
-        const escaped = patPath.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-        return new RegExp('^' + escaped + '$').test(path);
-      }
-      return true;
-    });
-  } catch { return false; }
+  return adblocker.isFallbackBlocked(url);
 }
 
 function isM3u8Url(url) {
@@ -141,7 +64,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
     let polling = false;
     let iframeDepth = 0;
     const MAX_IFRAME_DEPTH = 3;
-    let webRequestHandler = null;
+    let removeRequestObserver = null;
     let requestCount = 0;
     let vidsrcReloaded = false;
 
@@ -171,7 +94,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
       if (win && !win.isDestroyed()) win.close();
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (pollTimer) clearInterval(pollTimer);
-      if (webRequestHandler) capSession.webRequest.onBeforeRequest(null);
+      if (removeRequestObserver) removeRequestObserver();
     };
 
     const timeoutTimer = setTimeout(() => {
@@ -260,26 +183,20 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
       }
     })();
 
-    /* Strategy B: webRequest — monitors ALL outgoing requests */
-    webRequestHandler = capSession.webRequest.onBeforeRequest(
-      { urls: ['*://*/*'] },
-      (details, callback) => {
-        if (resolved) { callback({}); return; }
-        requestCount++;
-        const { url } = details;
-        if (isBlockedHost(url)) { callback({ cancel: true }); return; }
-        if (requestCount <= 20 || isM3u8Url(url)) {
-          console.log(`[hls-capture] [webRequest] #${requestCount}: ${url.slice(0, 250)} (type: ${details.resourceType || '?'})`);
-        }
-        if (isM3u8Url(url)) {
-          console.log(`[hls-capture] [webRequest] FOUND .m3u8: ${url}`);
-          finalize(url, details.referrer || playerUrl);
-          callback({ cancel: false });
-        } else {
-          callback({});
-        }
+    /* Strategy B: observe the shared adblock webRequest listener */
+    removeRequestObserver = adblocker.addRequestObserver(capSession, (details) => {
+      if (resolved) return null;
+      requestCount++;
+      const { url } = details;
+      if (requestCount <= 20 || isM3u8Url(url)) {
+        console.log(`[hls-capture] [webRequest] #${requestCount}: ${url.slice(0, 250)} (type: ${details.resourceType || '?'})`);
       }
-    );
+      if (isM3u8Url(url)) {
+        console.log(`[hls-capture] [webRequest] FOUND .m3u8: ${url}`);
+        finalize(url, details.referrer || playerUrl);
+      }
+      return null;
+    });
 
     /* Strategy C: inject anti-headless overrides + fetch/XHR monkeypatch */
     const injectMonkeypatch = async () => {

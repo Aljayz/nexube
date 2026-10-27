@@ -191,6 +191,8 @@ contextBridge.exposeInMainWorld('electron', {
   resolveAllmanga: (params) => ipcRenderer.invoke('resolve-allmanga', params),
   setPlayerVideo: (params) => ipcRenderer.invoke('set-player-video', params),
   getBlockStats: () => ipcRenderer.invoke('get-block-stats'),
+  getAdblockStatus: () => ipcRenderer.invoke('adblock:get-status'),
+  refreshAdblock: () => ipcRenderer.invoke('adblock:refresh'),
   onPipStateChange: (callback) => {
     const handler = (_, active) => callback(active);
     ipcRenderer.on('pip-state', handler);

@@ -6,7 +6,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "update:adblock": "node scripts/update-adblock-assets.mjs",
+    "postinstall": "node scripts/install-electron-native.cjs"
   },
   "devDependencies": {
     "prettier": "^3.0.0",

@@ -18,61 +18,17 @@ const MIME_TYPES = {
   '.srt': 'text/plain',
 };
 
-const BLOCKED_HOSTS = [
-  '*://www.google-analytics.com/*',
-  '*://analytics.google.com/*',
-  '*://googletagmanager.com/*',
-  '*://www.googletagmanager.com/*',
-  '*://googletagservices.com/*',
-  '*://doubleclick.net/*',
-  '*://*.doubleclick.net/*',
-  '*://adservice.google.com/*',
-  '*://adservice.google.de/*',
-  '*://pagead2.googlesyndication.com/*',
-  '*://stats.g.doubleclick.net/*',
-  '*://yt3.ggpht.com/ytc/*',
-  '*://fonts.googleapis.com/*',
-  '*://fonts.gstatic.com/*',
-  '*://googleapis.com/*',
-  '*://gstatic.com/*',
-  '*://cdn.adx1.com/*',
-  '*://intelligenceadx.com/*',
-  '*://adsco.re/*',
-  '*://mc.yandex.com/*',
-  '*://mc.yandex.ru/*',
-  '*://bvtpk.com/*',
-  '*://my.rtmark.net/*',
-  '*://b7510.com/*',
-  '*://gt.unbrownunflat.com/*',
-  '*://im.malocacomals.com/*',
-  '*://users.videasy.net/*',
-  '*://nf.sixmossin.com/*',
-  '*://realizationnewestfangs.com/*',
-  '*://acscdn.com/*',
-  '*://lt.taloseempest.com/*',
-  '*://pl26708123.profitableratecpm.com/*',
-  '*://preferencenail.com/*',
-  '*://protrafficinspector.com/*',
-  '*://s10.histats.com/*',
-  '*://weirdopt.com/*',
-  '*://static.cloudflareinsights.com/*',
-  '*://kettledroopingcontinuation.com/*',
-  '*://wayfarerorthodox.com/*',
-  '*://woxaglasuy.net/*',
-  '*://adeptspiritual.com/*',
-  '*://www.calculating-laugh.com/*',
-  '*://amavhxdlofklxjg.xyz/*',
-  '*://7jtjubf8p5kq7x3z2.u3qleufcm6vure326ktfpbj.cfd/*',
-  '*://5mq.get64t9vqg8pnbex1y463o.rest/*',
-  '*://usrpubtrk.com/*',
-  '*://adexchangeclear.com/*',
-  '*://rzjzjnavztycv.online/*',
-  '*://tmstr4.cloudnestra.com/*',
-  '*://tmstr4.neonhorizonworkshops.com/*',
-];
-
 app.setName('Nexube');
 app.setAppUserModelId('com.nexube.app');
+
+// Dev runs can overlap with an installed Nexube instance. Give Chromium its own
+// session/cache directory so the two processes don't fight over the same files.
+// userData is intentionally left shared so dev keeps the existing profile and
+// settings; only cookies/cache/localStorage are isolated.
+if (process.env.VITE_DEV_SERVER_URL) {
+  app.setPath('sessionData', path.join(app.getPath('temp'), 'nexube-dev-session'));
+}
+
 app.disableHardwareAcceleration();
 const { register: registerStorage } = require('./ipc/storage');
 const { register: registerPlayer } = require('./ipc/player');
@@ -86,8 +42,10 @@ const { register: registerSystem } = require('./ipc/system');
 const { register: registerDeskDownloads, killAllDownloads: killAllDeskDownloads } = require('./ipc/desk-downloads');
 const { register: registerUpdater } = require('./ipc/updater');
 const { register: registerWyzie } = require('./ipc/wyzie');
+const adblocker = require('./services/adblocker');
 
 let mainWindow = null;
+let mediaObserverRegistered = false;
 
 function getMainWindow() {
   return mainWindow;
@@ -123,8 +81,6 @@ function createWindow() {
     callback({ responseHeaders: headers });
   });
 
-  blockStats.init(getMainWindow);
-
   const playerSession = session.fromPartition('persist:player');
   const trailerSession = session.fromPartition('persist:trailer');
 
@@ -142,55 +98,25 @@ function createWindow() {
   playerSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, stripHeaders);
   trailerSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, stripHeaders);
 
-  trailerSession.webRequest.onBeforeRequest({ urls: BLOCKED_HOSTS }, (_, cb) => cb({ cancel: true }));
-
-  const MEDIA_URLS = ['*://*/*.m3u8*', '*://*/*.m3u8', '*://*/*.vtt*', '*://*/*.vtt'];
-  playerSession.webRequest.onBeforeRequest(
-    { urls: [...BLOCKED_HOSTS, ...MEDIA_URLS] },
-    (details, callback) => {
+  if (!mediaObserverRegistered) {
+    mediaObserverRegistered = true;
+    // One shared onBeforeRequest listener is owned by services/adblocker.js.
+    // This observer only reports media URLs after ad blocking has allowed them.
+    adblocker.addRequestObserver(playerSession, (details) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return null;
       const { url } = details;
-      const isMedia = url.includes('.m3u8') || url.includes('.vtt');
-      if (!isMedia) {
-        blockStats.recordBlockedRequest(url);
-        callback({ cancel: true });
-        return;
-      }
-      try {
-        const parsed = new URL(url);
-        const host = parsed.hostname;
-        const path = parsed.pathname;
-        const blocked = BLOCKED_HOSTS.some((pat) => {
-          const withoutScheme = pat.replace(/^\*:\/\//, '');
-          const slashIdx = withoutScheme.indexOf('/');
-          const patHost = slashIdx === -1 ? withoutScheme : withoutScheme.substring(0, slashIdx);
-          const patPath = slashIdx === -1 ? '' : withoutScheme.substring(slashIdx);
-          const hostMatch = patHost.startsWith('*.')
-            ? host === patHost.slice(2) || host.endsWith('.' + patHost.slice(2))
-            : host === patHost;
-          if (!hostMatch) return false;
-          if (patPath) {
-            const escaped = patPath.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-            return new RegExp('^' + escaped + '$').test(path);
-          }
-          return true;
+      if (url.includes('.m3u8')) {
+        mainWindow.webContents.send('m3u8-found', url);
+      } else if (url.includes('.vtt')) {
+        const langMatch = url.match(/\/(\w{2})\.vtt/) || url.match(/[?&]lang=(\w{2})/);
+        mainWindow.webContents.send('subtitle-found', {
+          url,
+          lang: langMatch ? langMatch[1] : 'en',
         });
-        if (blocked) {
-          blockStats.recordBlockedRequest(url);
-          callback({ cancel: true });
-          return;
-        }
-      } catch {}
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (url.includes('.m3u8')) {
-          mainWindow.webContents.send('m3u8-found', url);
-        } else if (url.includes('.vtt')) {
-          const langMatch = url.match(/\/(\w{2})\.vtt/) || url.match(/[?&]lang=(\w{2})/);
-          mainWindow.webContents.send('subtitle-found', { url, lang: langMatch ? langMatch[1] : 'en' });
-        }
       }
-      callback({});
-    }
-  );
+      return null;
+    });
+  }
 
   const ytCookie = {
     url: 'https://www.youtube.com',
@@ -265,7 +191,13 @@ protocol.registerSchemesAsPrivileged([
 
 app.whenReady().then(() => {
   getDatabase(path.join(app.getPath('userData'), 'nexube.db'));
+  blockStats.init(getMainWindow);
   blockStats.loadBlockStats();
+
+  // Attach the Brave adblock engine before any window/player session starts
+  // loading. Engine parsing happens asynchronously; the legacy fallback list is
+  // active immediately while the serialized engine or filter lists load.
+  adblocker.init();
 
   registerStorage();
   registerPlayer(getMainWindow);
@@ -280,6 +212,11 @@ app.whenReady().then(() => {
   registerWyzie();
 
   ipcMain.handle('get-block-stats', () => blockStats.getBlockStats());
+  ipcMain.handle('adblock:get-status', () => adblocker.getStatus());
+  ipcMain.handle('adblock:refresh', async () => {
+    await adblocker.refreshNow();
+    return adblocker.getStatus();
+  });
   ipcMain.handle('get-platform', () => process.platform);
   ipcMain.handle('get-app-version', () => APP_VERSION);
   ipcMain.handle('record-blocked-popup', (_, url) => {

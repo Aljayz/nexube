@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Shield } from 'lucide-react';
 
 export default function BlockedStatsModal({
@@ -7,6 +7,8 @@ export default function BlockedStatsModal({
   alltimeTotal,
   onClose,
 }) {
+  const [engineStatus, setEngineStatus] = useState(null);
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape') onClose();
@@ -14,6 +16,19 @@ export default function BlockedStatsModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
+
+  useEffect(() => {
+    let active = true;
+    window.electron
+      ?.getAdblockStatus?.()
+      .then((status) => {
+        if (active) setEngineStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="blocked-modal-overlay" onClick={onClose}>
@@ -58,6 +73,15 @@ export default function BlockedStatsModal({
           </strong>
           &nbsp;blocked
         </div>
+        {engineStatus && (
+          <div className="blocked-modal-engine">
+            {engineStatus.state === 'ready'
+              ? `Brave adblock-rust · ${engineStatus.lists.toLocaleString()} filter lists`
+              : engineStatus.state === 'error'
+                ? 'Brave engine unavailable · built-in fallback protection active'
+                : 'Brave engine loading · built-in fallback protection active'}
+          </div>
+        )}
       </div>
     </div>
   );

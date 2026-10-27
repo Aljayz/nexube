@@ -45,6 +45,22 @@ export function useDetailData(media, profileId, retryCount, preferredSource, isK
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [savedProgress, setSavedProgress] = useState(null);
+  const [progressLoadedFor, setProgressLoadedFor] = useState(null);
+
+  // Progress belongs to a specific media row. Treat it as loaded only once the
+  // fetch for the current media has completed so a media change can't briefly
+  // expose the previous title's resume position.
+  const progressLoaded = progressLoadedFor === mediaId;
+
+  // Season/episode data is fetched asynchronously and outlives a media change
+  // until the next details request finishes. Clear it up front so saved
+  // progress for the new title can't be matched against the old title's
+  // season list.
+  useEffect(() => {
+    setSeasons([]);
+    setEpisodes([]);
+    setSelectedSeason(1);
+  }, [mediaId]);
 
   useEffect(() => {
     async function fetchDetails(isRetry = false) {
@@ -135,9 +151,14 @@ export function useDetailData(media, profileId, retryCount, preferredSource, isK
           setIsFavorite(!!favStatus);
           setIsSaved(!!savedStatus);
           setSavedProgress(progress || null);
+          setProgressLoadedFor(mediaId);
         }
       } catch (err) {
         console.error('Failed to load status:', err);
+        if (mounted) {
+          setSavedProgress(null);
+          setProgressLoadedFor(mediaId);
+        }
       }
     }
     loadStatus();
@@ -257,7 +278,8 @@ export function useDetailData(media, profileId, retryCount, preferredSource, isK
     hasCached,
     isFavorite,
     isSaved,
-    savedProgress,
+    savedProgress: progressLoaded ? savedProgress : null,
+    progressLoaded,
     setSavedProgress,
     toggleFavorite,
     toggleSaved,

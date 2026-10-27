@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getResumeSeconds } from '@nexube/player-engine';
 
 const POLL_INTERVAL = 5000;
 
-export function usePlayer(details, profileId, mediaId, selectedSource, selectedSeason, autoMarkThreshold = 20, dubMode = 'sub') {
+export function usePlayer(details, profileId, mediaId, selectedSource, selectedSeason, autoMarkThreshold = 20, dubMode = 'sub', savedProgress = null) {
   const [playerUrl, setPlayerUrl] = useState(null);
   const [playerLoading, setPlayerLoading] = useState(true);
   const [currentEpisode, setCurrentEpisode] = useState(null);
@@ -15,13 +16,20 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
   const resolveUrlFromSource = useCallback(async (source, episode = null) => {
     if (!source) return null;
 
+    const seasonNumber = episode?.season_number ?? selectedSeason;
+    const startAt = getResumeSeconds(savedProgress, {
+      type: details?.type,
+      season: seasonNumber,
+      episode: episode?.episode_number,
+    });
+
     if (source.async && source.id === 'allmanga') {
       setResolveError(null);
       try {
         const epNum = episode?.episode_number || 1;
         const result = await window.electron.resolveAllmanga({
           title: details?.title || '',
-          seasonNumber: details?.type === 'tv' ? selectedSeason : undefined,
+          seasonNumber: details?.type === 'tv' ? seasonNumber : undefined,
           episodeNumber: details?.type === 'tv' ? epNum : 1,
           isMovie: details?.type === 'movie',
           translationType: dubMode,
@@ -33,7 +41,7 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
         const videoResult = await window.electron.setPlayerVideo({
           url: result.url,
           referer: result.referer,
-          startTime: 0,
+          startTime: startAt,
         });
         return videoResult.playerUrl;
       } catch (err) {
@@ -42,34 +50,49 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
       }
     }
 
+    const options = { startAt };
+
     if (source.async) {
-      return await source.url(details?.type, details?.tmdbId, selectedSeason, episode?.episode_number);
+      return await source.url(
+        details?.type,
+        details?.tmdbId,
+        seasonNumber,
+        episode?.episode_number,
+        options,
+      );
     }
 
     if (episode && source.urlWithEpisode) {
-      return source.urlWithEpisode(details?.type, details?.tmdbId, selectedSeason, episode.episode_number);
+      return source.urlWithEpisode(
+        details?.type,
+        details?.tmdbId,
+        seasonNumber,
+        episode.episode_number,
+        options,
+      );
     }
-    return source.url(details?.type, details?.tmdbId, selectedSeason, episode?.episode_number);
-  }, [details, selectedSeason, dubMode]);
+    return source.url(details?.type, details?.tmdbId, seasonNumber, episode?.episode_number, options);
+  }, [details, selectedSeason, dubMode, savedProgress]);
 
   const addToHistory = useCallback(() => {
     if (!details) return;
+    const season = currentEpisode?.season_number ?? selectedSeason;
     const title = currentEpisode
-      ? `${details.title} - S${selectedSeason}E${currentEpisode.episode_number}: ${currentEpisode.name}`
+      ? `${details.title} - S${season}E${currentEpisode.episode_number}: ${currentEpisode.name}`
       : details.title;
     window.electron?.library?.history?.add(
       profileId,
       mediaId,
       title,
       details.posterPath,
-      currentEpisode ? selectedSeason : null,
+      currentEpisode ? season : null,
       currentEpisode ? currentEpisode.episode_number : null
     ).catch(() => {});
   }, [details, profileId, mediaId, currentEpisode, selectedSeason]);
 
   const saveProgressToDB = useCallback(async (progressData) => {
     if (!progressData || progressData.duration <= 0) return;
-    const season = currentEpisode ? selectedSeason : null;
+    const season = currentEpisode ? (currentEpisode.season_number ?? selectedSeason) : null;
     const episode = currentEpisode ? currentEpisode.episode_number : null;
     await window.electron?.library?.progress?.update(profileId, mediaId, {
       progressPercent: progressData.percent,

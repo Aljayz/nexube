@@ -35,6 +35,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.100.11(react@18.3.1)
+      adblock-rs:
+        specifier: 0.13.3
+        version: 0.13.3
       axios:
         specifier: ^1.7.0
         version: 1.16.1
@@ -924,9 +927,13 @@ packages:
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
+
+  adblock-rs@0.13.3:
+    resolution: {integrity: sha512-HX1Jjo1wyB1x/NSGAW37grXhcyIB1taAoUHsqodCn2hdQiQmgcVLzU5pvpcQ7B5PWEtL2xU2iO/DPr2f1Aq4ZQ==}
 
   agent-base@6.0.2:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
@@ -1134,6 +1141,10 @@ packages:
 
   caniuse-lite@1.0.30001793:
     resolution: {integrity: sha512-iwSsYWaCOoh26cV8NwNRViHlrfUvYsHDfRVcbtmw0Kg6PJIZZXwMkj1442FYLBGkeUf1juAsU3DTfxW579mrPA==}
+
+  cargo-cp-artifact@0.1.9:
+    resolution: {integrity: sha512-6F+UYzTaGB+awsTXg0uSJA1/b/B3DDJzpKVRu0UmyI7DmNeaAl2RFHuTGIN6fEgpadRxoXGb7gbC1xo4C3IdyA==}
+    hasBin: true
 
   caseless@0.12.0:
     resolution: {integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==}
@@ -3345,6 +3356,10 @@ snapshots:
 
   abbrev@1.1.1: {}
 
+  adblock-rs@0.13.3:
+    dependencies:
+      cargo-cp-artifact: 0.1.9
+
   agent-base@6.0.2:
     dependencies:
       debug: 4.4.3
@@ -3646,6 +3661,8 @@ snapshots:
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001793: {}
+
+  cargo-cp-artifact@0.1.9: {}
 
   caseless@0.12.0: {}
 

@@ -1,11 +1,36 @@
 import { Heart, HeartOff, Plus, Check, Download, ChevronLeft, Play, Film } from 'lucide-react';
+import { getResumeSeconds } from '@nexube/player-engine';
 import { buildMediaData } from '../hooks/useDetailData';
 
 function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${total}s`;
+}
+
+// Saved rows from SQLite use snake_case; live progress from the player uses
+// camelCase. Delegate the thresholds and episode matching to player-engine so
+// the label never promises a resume the generated URL won't do.
+function getResumeState(savedProgress, type) {
+  if (!savedProgress) return { canResume: false, seconds: 0, season: null, episode: null };
+
+  const season = Number(savedProgress.season);
+  const episode = Number(savedProgress.episode);
+  const seconds = getResumeSeconds(savedProgress, {
+    type,
+    season: Number.isFinite(season) && season > 0 ? season : undefined,
+    episode: Number.isFinite(episode) && episode > 0 ? episode : undefined,
+  });
+
+  return {
+    canResume: seconds > 0,
+    seconds,
+    season: Number.isFinite(season) ? season : null,
+    episode: Number.isFinite(episode) ? episode : null,
+  };
 }
 
 export default function MediaHero({
@@ -24,6 +49,10 @@ export default function MediaHero({
 }) {
   const backdropUrl = details?.backdropPath ? `https://image.tmdb.org/t/p/w1280${details.backdropPath}` : '';
   const posterUrl = details?.posterPath ? `https://image.tmdb.org/t/p/w780${details.posterPath}` : '';
+  const resume = getResumeState(savedProgress, details?.type);
+  const resumeLabel = resume.canResume
+    ? `Resume${details?.type === 'tv' ? ` S${resume.season}E${resume.episode}` : ''} at ${formatTime(resume.seconds)}`
+    : 'Play';
 
   return (
     <div className="relative h-[600px]">
@@ -75,7 +104,7 @@ export default function MediaHero({
             {!isUnreleased && (
             <button onClick={() => onPlay()} className="btn-primary flex items-center gap-sm">
               <Play className="w-4 h-4" />
-              {savedProgress?.progressSeconds > 0 ? `Resume at ${formatTime(savedProgress.progress_seconds || savedProgress.progressSeconds)}` : 'Play'}
+              {resumeLabel}
             </button>
             )}
             {videos.length > 0 && (

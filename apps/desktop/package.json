@@ -21,6 +21,7 @@
     "@nexube/types": "workspace:*",
     "@nexube/ui-tokens": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
+    "adblock-rs": "0.13.3",
     "axios": "^1.7.0",
     "electron-updater": "^6.8.3",
     "ffmpeg-static": "^5.3.0",
@@ -55,9 +56,24 @@
     "electronVersion": "28.3.3",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "!node_modules/adblock-rs/target/**/*",
+      "!node_modules/adblock-rs/src/**/*",
+      "!node_modules/adblock-rs/benches/**/*",
+      "!node_modules/adblock-rs/fuzz/**/*",
+      "!node_modules/adblock-rs/js/src/**/*",
+      "!node_modules/adblock-rs/js/test/**/*",
+      "!node_modules/adblock-rs/Cargo.lock",
+      "!node_modules/adblock-rs/Cargo.toml",
+      "!node_modules/adblock-rs/rust-toolchain.toml",
+      "!node_modules/adblock-rs/rustfmt.toml",
+      "!node_modules/adblock-rs/js/Cargo.toml",
+      "!node_modules/adblock-rs/js/artifacts.json",
+      "!node_modules/adblock-rs/js/example.mjs"
     ],
     "asarUnpack": [
+      "node_modules/adblock-rs/js/index.node",
+      "node_modules/.pnpm/adblock-rs@*/node_modules/adblock-rs/js/index.node",
       "node_modules/ffmpeg-static/**",
       "node_modules/ffprobe-installer/**",
       "node_modules/@ffprobe-installer/**"

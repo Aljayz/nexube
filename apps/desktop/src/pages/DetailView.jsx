@@ -14,6 +14,7 @@ import LoadingScreen from '../components/LoadingScreen';
 
 function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }) {
   const profileId = activeProfile?.id || 'master-id';
+  const mediaId = `${media.type}-${media.tmdbId}`;
   const [retryCount, setRetryCount] = useState(0);
   const [showTrailerList, setShowTrailerList] = useState(false);
   const [trailerUrl, setTrailerUrl] = useState(null);
@@ -25,6 +26,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
   const [pipActive, setPipActive] = useState(false);
   const dropdownRef = useRef(null);
   const sourceDropdownRef = useRef(null);
+  const savedSeasonAppliedRef = useRef(null);
 
   const {
     details,
@@ -41,6 +43,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
     isFavorite,
     isSaved,
     savedProgress,
+    progressLoaded,
     setSavedProgress,
     toggleFavorite,
     toggleSaved,
@@ -77,11 +80,31 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
     handlePlay,
     switchPlayerUrl,
     handleClosePlayer,
-  } = usePlayer(details, profileId, `${media.type}-${media.tmdbId}`, details?.selectedSource, selectedSeason, activeProfile?.autoMarkThreshold, dubMode);
+  } = usePlayer(details, profileId, mediaId, details?.selectedSource, selectedSeason, activeProfile?.autoMarkThreshold, dubMode, savedProgress);
 
   useEffect(() => {
-    if (liveProgress) setSavedProgress(liveProgress);
-  }, [liveProgress]);
+    if (liveProgress) {
+      setSavedProgress({
+        ...liveProgress,
+        season: currentEpisode?.season_number ?? (media.type === 'tv' ? selectedSeason : null),
+        episode: currentEpisode?.episode_number ?? null,
+      });
+    }
+  }, [liveProgress, currentEpisode, selectedSeason, media.type, setSavedProgress]);
+
+  // Open the detail page on the season that was last watched.
+  useEffect(() => {
+    if (media.type !== 'tv' || !progressLoaded || seasons.length === 0) return;
+    if (savedSeasonAppliedRef.current === mediaId) return;
+    if (savedProgress?.media_id && savedProgress.media_id !== mediaId) return;
+
+    const season = Number(savedProgress?.season);
+    if (Number.isFinite(season) && season > 0 && seasons.some((s) => Number(s.season_number) === season)) {
+      setSelectedSeason(season);
+    }
+
+    savedSeasonAppliedRef.current = mediaId;
+  }, [media.type, mediaId, progressLoaded, savedProgress, seasons, setSelectedSeason]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -125,6 +148,60 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
   const handleStopPip = useCallback(() => {
     window.electron?.player?.reattach?.();
   }, []);
+
+  const handleHeroPlay = useCallback(async () => {
+    if (media.type !== 'tv') {
+      await handlePlay();
+      return;
+    }
+
+    const savedSeason = Number(savedProgress?.season);
+    const savedEpisode = Number(savedProgress?.episode);
+    const hasSavedEpisode =
+      progressLoaded &&
+      Number.isFinite(savedSeason) && savedSeason > 0 &&
+      Number.isFinite(savedEpisode) && savedEpisode > 0;
+
+    const targetSeason = hasSavedEpisode ? savedSeason : selectedSeason;
+    const targetEpisode = hasSavedEpisode ? savedEpisode : null;
+
+    let episode = null;
+
+    if (targetEpisode && selectedSeason === targetSeason && episodes.length > 0) {
+      episode =
+        episodes.find(
+          (e) =>
+            Number(e.episode_number) === targetEpisode &&
+            (!e.season_number || Number(e.season_number) === Number(targetSeason)),
+        ) || null;
+    }
+
+    if (targetEpisode && !episode) {
+      try {
+        const res = await window.electron?.tmdb?.fetch(`/tv/${media.tmdbId}/season/${targetSeason}`);
+        episode = res?.episodes?.find((e) => Number(e.episode_number) === targetEpisode) || null;
+      } catch (err) {
+        console.error('Failed to load saved episode:', err);
+      }
+    }
+
+    if (!episode && targetEpisode) {
+      episode = { season_number: targetSeason, episode_number: targetEpisode };
+    }
+
+    if (!episode) {
+      episode =
+        episodes.find((e) => Number(e.season_number) === Number(selectedSeason)) ||
+        episodes[0] ||
+        { season_number: selectedSeason || 1, episode_number: 1 };
+    }
+
+    if (hasSavedEpisode && selectedSeason !== targetSeason) {
+      setSelectedSeason(targetSeason);
+    }
+
+    await handlePlay(episode);
+  }, [media.type, media.tmdbId, savedProgress, progressLoaded, selectedSeason, episodes, handlePlay, setSelectedSeason]);
 
   const handleEpisodeNavigation = useCallback(async (direction) => {
     if (media.type !== 'tv' || !currentEpisode) return;
@@ -177,7 +254,7 @@ function DetailView({ media, activeProfile, onBack, onSelect, onProfileUpdated }
         isSaved={isSaved}
         savedProgress={savedProgress}
         onBack={onBack}
-        onPlay={handlePlay}
+        onPlay={handleHeroPlay}
         onToggleFavorite={toggleFavorite}
         onToggleSaved={toggleSaved}
         onShowTrailerList={() => setShowTrailerList(true)}

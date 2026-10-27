@@ -9,6 +9,11 @@ export interface PlayerState {
   quality: string;
 }
 
+export interface SourcePlaybackOptions {
+  /** Start playback at this position, in seconds. */
+  startAt?: number;
+}
+
 export interface PlayerSource {
   id: string;
   label: string;
@@ -20,7 +25,8 @@ export interface PlayerSource {
     type: 'movie' | 'tv',
     id: string | number,
     season?: number,
-    episode?: number
+    episode?: number,
+    options?: SourcePlaybackOptions
   ) => string | Promise<string>;
 }
 
