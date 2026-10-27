@@ -47,6 +47,28 @@ const adblocker = require('./services/adblocker');
 let mainWindow = null;
 let mediaObserverRegistered = false;
 
+// YouTube refuses embeds when the parent document is loaded from file://
+// because the embed request has no HTTP referrer (Error 153). Trailers are the
+// only YouTube content in the app, so give those requests a normal web origin.
+const TRAILER_REFERER = 'https://github.com/Aljayz/nexube';
+const YOUTUBE_REFERER_FILTER = {
+  urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'],
+};
+
+function installTrailerReferer(target) {
+  target.webRequest.onBeforeSendHeaders(
+    YOUTUBE_REFERER_FILTER,
+    (details, callback) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          Referer: TRAILER_REFERER,
+        },
+      });
+    },
+  );
+}
+
 function getMainWindow() {
   return mainWindow;
 }
@@ -81,8 +103,11 @@ function createWindow() {
     callback({ responseHeaders: headers });
   });
 
+  installTrailerReferer(session.defaultSession);
+
   const playerSession = session.fromPartition('persist:player');
   const trailerSession = session.fromPartition('persist:trailer');
+  installTrailerReferer(trailerSession);
 
   const stripHeaders = (details, callback) => {
     const headers = { ...details.responseHeaders };
