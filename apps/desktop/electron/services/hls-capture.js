@@ -18,6 +18,14 @@ function isM3u8Url(url) {
   return /\.m3u8([?#]|$)/i.test(url);
 }
 
+function isMpdUrl(url) {
+  return /\.mpd([?#]|$)/i.test(url);
+}
+
+function isStreamManifestUrl(url) {
+  return isM3u8Url(url) || isMpdUrl(url);
+}
+
 async function isCloudflareChallenge(win) {
   try {
     const url = win.webContents.getURL();
@@ -72,7 +80,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
 
     const finalize = (url, referer) => {
       if (resolved) return;
-      console.log(`[hls-capture] >>> FOUND m3u8 via ${hostname}: ${url} referer: ${referer}`);
+      console.log(`[hls-capture] >>> FOUND stream URL via ${hostname}: ${url} referer: ${referer}`);
       resolved = true;
       cleanup();
       capSession.cookies.get({ url }).then((cookies) => {
@@ -102,7 +110,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
         console.log(`[hls-capture] >>> TIMED OUT for ${hostname} after ${timeoutMs}ms (requests seen: ${requestCount})`);
         resolved = true;
         cleanup();
-        reject(new Error('M3U8 capture timed out'));
+        reject(new Error('Stream capture timed out'));
       }
     }, timeoutMs);
 
@@ -135,8 +143,8 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
             if (reqUrl && !isBlockedHost(reqUrl)) {
               console.log(`[hls-capture] [debugger] request #${requestCount}: ${reqUrl.slice(0, 200)}`);
             }
-            if (isM3u8Url(reqUrl)) {
-              console.log(`[hls-capture] [debugger] FOUND .m3u8 in request: ${reqUrl}`);
+            if (isStreamManifestUrl(reqUrl)) {
+              console.log(`[hls-capture] [debugger] FOUND stream manifest in request: ${reqUrl}`);
               finalize(reqUrl, params.documentURL);
             }
           }
@@ -151,23 +159,24 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
               respUrl.includes('allanime')
             );
             if (isApiLike && respUrl && !respUrl.endsWith('.js') && !respUrl.endsWith('.css')) {
-              console.log(`[hls-capture] [debugger] responseReceived (may contain m3u8): ${respUrl.slice(0, 250)} mime=${mime}`);
+              console.log(`[hls-capture] [debugger] responseReceived (may contain a stream manifest): ${respUrl.slice(0, 250)} mime=${mime}`);
               try {
                 const bodyResp = await win.webContents.debugger.sendCommand('Network.getResponseBody', { requestId: params.requestId });
                 const body = bodyResp?.body || '';
+                const manifestRegex = /https?:\/\/[^\s"']+\.(?:m3u8|mpd)[^\s"']*/i;
                 if (bodyResp?.base64Encoded) {
                   const buf = Buffer.from(body, 'base64');
                   const decoded = buf.toString('utf-8');
-                  const m3u8Match = decoded.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
-                  if (m3u8Match) {
-                    console.log(`[hls-capture] [debugger] FOUND .m3u8 in API response body: ${m3u8Match[0]}`);
-                    finalize(m3u8Match[0], respUrl);
+                  const manifestMatch = decoded.match(manifestRegex);
+                  if (manifestMatch) {
+                    console.log(`[hls-capture] [debugger] FOUND stream manifest in API response body: ${manifestMatch[0]}`);
+                    finalize(manifestMatch[0], respUrl);
                   }
                 } else {
-                  const m3u8Match = body.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
-                  if (m3u8Match) {
-                    console.log(`[hls-capture] [debugger] FOUND .m3u8 in API response body: ${m3u8Match[0]}`);
-                    finalize(m3u8Match[0], respUrl);
+                  const manifestMatch = body.match(manifestRegex);
+                  if (manifestMatch) {
+                    console.log(`[hls-capture] [debugger] FOUND stream manifest in API response body: ${manifestMatch[0]}`);
+                    finalize(manifestMatch[0], respUrl);
                   }
                 }
               } catch (bodyErr) {
@@ -188,11 +197,11 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
       if (resolved) return null;
       requestCount++;
       const { url } = details;
-      if (requestCount <= 20 || isM3u8Url(url)) {
+      if (requestCount <= 20 || isStreamManifestUrl(url)) {
         console.log(`[hls-capture] [webRequest] #${requestCount}: ${url.slice(0, 250)} (type: ${details.resourceType || '?'})`);
       }
-      if (isM3u8Url(url)) {
-        console.log(`[hls-capture] [webRequest] FOUND .m3u8: ${url}`);
+      if (isStreamManifestUrl(url)) {
+        console.log(`[hls-capture] [webRequest] FOUND stream manifest: ${url}`);
         finalize(url, details.referrer || playerUrl);
       }
       return null;
@@ -206,7 +215,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
           (() => {
             if (window.__m3u8Patched) return;
             window.__m3u8Patched = true;
-            window.__m3u8Url = null;
+            window.__streamUrl = null;
 
             /* Override headless/bot detection APIs */
             Object.defineProperty(document, 'hidden', { get: () => false, configurable: false });
@@ -222,19 +231,19 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
 
             console.log('[hls-capture] Anti-headless + monkeypatch installed');
 
-            const m3u8Regex = /https?:\\/\\/[^\\s"']+\\.m3u8[^\\s"']*/i;
+            const manifestRegex = /https?:\\/\\/[^\\s"']+\\.(?:m3u8|mpd)[^\\s"']*/i;
 
             const _fetch = window.fetch.bind(window);
             window.fetch = async (...args) => {
               const r = await _fetch(...args);
               const reqUrl = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-              if (m3u8Regex.test(reqUrl)) { window.__m3u8Url = reqUrl; console.log('[hls-capture] Monkeypatch caught fetch URL:', reqUrl); }
+              if (manifestRegex.test(reqUrl)) { window.__streamUrl = reqUrl; console.log('[hls-capture] Monkeypatch caught fetch URL:', reqUrl); }
               if (r.ok) {
                 var ct = r.headers && r.headers.get ? r.headers.get('content-type') || '' : '';
                 if (ct.includes('json') || ct.includes('text') || ct.includes('javascript')) {
                   r.clone().text().then(function(txt) {
-                    var match = txt.match(m3u8Regex);
-                    if (match) { window.__m3u8Url = match[0]; console.log('[hls-capture] Monkeypatch caught fetch BODY:', match[0]); }
+                    var match = txt.match(manifestRegex);
+                    if (match) { window.__streamUrl = match[0]; console.log('[hls-capture] Monkeypatch caught fetch BODY:', match[0]); }
                   }).catch(function(){});
                 }
               }
@@ -252,14 +261,14 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
               const _onload = self.onload;
               self.addEventListener('load', function() {
                 if (self.__url) {
-                  if (m3u8Regex.test(self.__url)) {
-                    window.__m3u8Url = self.__url;
+                  if (manifestRegex.test(self.__url)) {
+                    window.__streamUrl = self.__url;
                     console.log('[hls-capture] Monkeypatch caught XHR URL:', self.__url);
                   }
                   try {
                     var respText = self.responseText || '';
-                    var match = respText.match(m3u8Regex);
-                    if (match) { window.__m3u8Url = match[0]; console.log('[hls-capture] Monkeypatch caught XHR BODY:', match[0]); }
+                    var match = respText.match(manifestRegex);
+                    if (match) { window.__streamUrl = match[0]; console.log('[hls-capture] Monkeypatch caught XHR BODY:', match[0]); }
                   } catch(e) {}
                 }
                 if (_onload) _onload.apply(self, arguments);
@@ -285,18 +294,18 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
           const result = await win.webContents.executeJavaScript(`
             (() => {
               try {
-                if (window.__m3u8Url) { console.log('[hls-capture] [poll] Found __m3u8Url:', window.__m3u8Url); return { type: 'm3u8', url: window.__m3u8Url }; }
+                if (window.__streamUrl) { console.log('[hls-capture] [poll] Found __streamUrl:', window.__streamUrl); return { type: 'manifest', url: window.__streamUrl }; }
 
-                const m3u8Regex = new RegExp('[.]m3u8([?#]|$)', 'i');
+                const manifestRegex = new RegExp('[.](?:m3u8|mpd)([?#]|$)', 'i');
 
                 const seen = new Set();
-                for (const sel of ['video[src]', 'video source[src]', 'source[type*="mpegurl"]', 'source[type*="x-mpeg"]', '[data-src*=".m3u8"]', '[data-url*=".m3u8"]', '[href*=".m3u8"]']) {
+                for (const sel of ['video[src]', 'video source[src]', 'source[type*="mpegurl"]', 'source[type*="x-mpeg"]', 'source[type*="dash"]', '[data-src*=".m3u8"]', '[data-src*=".mpd"]', '[data-url*=".m3u8"]', '[data-url*=".mpd"]', '[href*=".m3u8"]', '[href*=".mpd"]']) {
                   const els = document.querySelectorAll(sel);
                   for (const el of els) {
                     const s = el.src || el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-url') || el.getAttribute('href') || '';
                     if (s && !s.startsWith('blob:') && !s.startsWith('data:') && !seen.has(s)) {
                       seen.add(s);
-                      if (m3u8Regex.test(s)) return { type: 'm3u8', url: s };
+                      if (manifestRegex.test(s)) return { type: 'manifest', url: s };
                     }
                   }
                 }
@@ -305,7 +314,7 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
                 for (const v of vids) {
                   if (v.src && !v.src.startsWith('blob:') && !v.src.startsWith('data:')) {
                     console.log('[hls-capture] [poll] Found video src:', String(v.src).slice(0, 200));
-                    if (m3u8Regex.test(v.src)) return { type: 'm3u8', url: v.src };
+                    if (manifestRegex.test(v.src)) return { type: 'manifest', url: v.src };
                     return { type: 'direct', url: v.src };
                   }
                 }
@@ -316,7 +325,12 @@ function captureM3u8Url(playerUrl, timeoutMs = 120000, options = {}) {
           `);
           if (result && !resolved) {
             console.log(`[hls-capture] [poll] Result type=${result.type} url=${result.url ? result.url.slice(0, 200) : 'N/A'} for ${hostname}`);
-            if (result.type === 'm3u8') { finalize(result.url, playerUrl); return; }
+            // Some players (VidLink) expose a DASH manifest or a direct
+            // progressive video file. The downloader accepts all of these.
+            if (result.type === 'm3u8' || result.type === 'manifest' || result.type === 'direct') {
+              finalize(result.url, playerUrl);
+              return;
+            }
           }
         } catch (err) {
           console.log(`[hls-capture] [poll] JS error during DOM scan for ${hostname}:`, err.message);

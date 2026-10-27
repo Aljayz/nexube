@@ -25,6 +25,9 @@ apps/desktop/nexube.db
 npm-debug.log*
 pnpm-debug.log*
 
+# Session context logs (LLM/agent session transcripts)
+context/
+
 # OS files
 .DS_Store
 Thumbs.db

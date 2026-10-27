@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, ExternalLink, Download, Maximize } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, X, Shield, Download } from 'lucide-react';
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useBlockedStats } from '../hooks/useBlockedStats';
 import BlockedStatsModal from './BlockedStatsModal';
@@ -46,7 +46,6 @@ export default function PlayerSection({
   onEpisodeSelect,
   onSourceSelect,
   onDubModeToggle,
-  onPopout,
   onStopPip,
   onPrevEpisode,
   onNextEpisode,
@@ -60,9 +59,9 @@ export default function PlayerSection({
   const [playerFullscreen, setPlayerFullscreen] = useState(false);
   const playerSectionRef = useRef(null);
 
-  // Intercept fullscreen requests from embedded players (vidsrc / vidapi use
-  // the native Fullscreen API which would otherwise fullscreen the entire app).
-  // Videasy and AllManga handle fullscreen internally, skip those.
+  // Intercept fullscreen requests from embedded players that use the native
+  // Fullscreen API (VidSrc), which would otherwise fullscreen the entire app.
+  // VidLink and AllManga manage their own fullscreen UI, skip those.
   useEffect(() => {
     if (!selectedSource || selectedSource.progressMethod !== 'frameIteration') return;
     const enterH = window.electron?.player?.onWebviewEnterFullscreen?.(() => {
@@ -80,10 +79,6 @@ export default function PlayerSection({
       document.documentElement.removeAttribute('data-player-fullscreen');
     };
   }, [selectedSource]);
-
-  const handleFullscreen = () => {
-    window.electron?.player?.popoutFullscreen?.(playerUrl);
-  };
 
   useEffect(() => {
     const handler = () => {
@@ -254,22 +249,6 @@ export default function PlayerSection({
                 {sessionTotal > 99 ? '99+' : sessionTotal}
               </span>
             )}
-          </button>
-          {onPopout && (
-            <button
-              onClick={onPopout}
-              className="p-sm text-text-muted hover:text-text-primary transition-colors"
-              title="Pop-out player"
-            >
-              <ExternalLink className="w-5 h-5" />
-            </button>
-          )}
-          <button
-            onClick={handleFullscreen}
-            className="p-sm text-text-muted hover:text-text-primary transition-colors"
-            title="Fullscreen"
-          >
-            <Maximize className="w-5 h-5" />
           </button>
           <button
             onClick={onClose}

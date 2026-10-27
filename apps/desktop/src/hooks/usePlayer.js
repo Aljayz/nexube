@@ -284,6 +284,21 @@ export function usePlayer(details, profileId, mediaId, selectedSource, selectedS
     };
   }, [playerUrl, profileId, mediaId, currentEpisode, selectedSeason, addToHistory, saveProgressToDB, autoMarkThreshold]);
 
+  // Keep the latest close handler so the guest-Escape relay below always uses
+  // current progress state without re-subscribing on every liveProgress update.
+  const closePlayerRef = useRef(handleClosePlayer);
+  useEffect(() => {
+    closePlayerRef.current = handleClosePlayer;
+  }, [handleClosePlayer]);
+
+  // Escape pressed while keyboard focus is inside the player webview never
+  // reaches this window's keydown handler. Main relays it as 'player:escape'.
+  useEffect(() => {
+    if (!playerUrl) return;
+    const handler = window.electron?.player?.onPlayerEscape?.(() => closePlayerRef.current());
+    return () => window.electron?.player?.offPlayerEscape?.(handler);
+  }, [playerUrl]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {

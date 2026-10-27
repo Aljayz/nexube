@@ -14,7 +14,7 @@ function getStore() {
         subtitleSources: 'all',
         subtitleProvider: 'wyzie',
         lastProfile: 'master-id',
-        preferredSource: 'videasy',
+        preferredSource: 'vidlink',
         settings: {},
       },
     });

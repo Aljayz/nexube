@@ -26,6 +26,14 @@ contextBridge.exposeInMainWorld('electron', {
     popout: (url) => ipcRenderer.invoke('player:popout', url),
     popoutFullscreen: (url) => ipcRenderer.invoke('player:popoutFullscreen', url),
     stop: () => ipcRenderer.send('player:stop'),
+    onPlayerEscape: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('player:escape', handler);
+      return handler;
+    },
+    offPlayerEscape: (handler) => {
+      if (handler) ipcRenderer.removeListener('player:escape', handler);
+    },
     reattach: () => ipcRenderer.send('popout:reattach'),
     onFullscreenExit: (callback) => ipcRenderer.on('player:fullscreen-exit', () => callback()),
     offFullscreenExit: (handler) => ipcRenderer.removeListener('player:fullscreen-exit', handler),

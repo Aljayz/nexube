@@ -12,6 +12,30 @@ export interface PlayerState {
 export interface SourcePlaybackOptions {
   /** Start playback at this position, in seconds. */
   startAt?: number;
+  /** Player accent color, as a hex value with or without the leading `#`. */
+  primaryColor?: string;
+  /** Color of the progress bar behind the sliders. */
+  secondaryColor?: string;
+  /** Player icon color, as a hex value with or without the leading `#`. */
+  iconColor?: string;
+  /** Player icon style. */
+  icons?: 'vid' | 'default';
+  /** Whether the player shows the media title. */
+  title?: boolean;
+  /** Whether the player shows the poster image. */
+  poster?: boolean;
+  /** Whether playback starts automatically. */
+  autoplay?: boolean;
+  /** Whether the next-episode button is shown near the end of an episode. */
+  nextbutton?: boolean;
+  /** Player implementation to use. */
+  player?: 'default' | 'jw';
+  /** Direct URL to an external WebVTT subtitle file. */
+  subFile?: string;
+  /** Label for the external subtitle track. */
+  subLabel?: string;
+  /** URL to redirect to when the stream fails to load. */
+  fallbackUrl?: string;
 }
 
 export interface PlayerSource {

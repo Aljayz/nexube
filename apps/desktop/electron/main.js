@@ -29,7 +29,6 @@ if (process.env.VITE_DEV_SERVER_URL) {
   app.setPath('sessionData', path.join(app.getPath('temp'), 'nexube-dev-session'));
 }
 
-app.disableHardwareAcceleration();
 const { register: registerStorage } = require('./ipc/storage');
 const { register: registerPlayer } = require('./ipc/player');
 const blockStats = require('./ipc/blockStats');
@@ -86,20 +85,17 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: !process.env.VITE_DEV_SERVER_URL,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
       webviewTag: true,
     },
     show: false,
   });
 
-  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: vault:; connect-src 'self' vault: https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
-  const CSP_EXEMPT_DOMAINS = ['vaplayer.ru'];
+  const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org https://img.youtube.com; media-src 'self' blob: https: file: vault:; connect-src 'self' vault: https://api.themoviedb.org https://api.themoviedb.org/3 https://nexube-feedback-api.vercel.app; frame-src https:;";
   session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = { ...details.responseHeaders };
-    const shouldInjectCSP = !CSP_EXEMPT_DOMAINS.some((d) => details.url.includes(d));
-    if (shouldInjectCSP) {
-      headers['content-security-policy'] = [CSP];
-    }
+    headers['content-security-policy'] = [CSP];
     callback({ responseHeaders: headers });
   });
 
@@ -174,14 +170,30 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-attach-webview', (_, wc) => {
+    // Track native HTML fullscreen (used by VidSrc) so Escape inside the guest
+    // isn't hijacked while it is busy exiting its own fullscreen state.
+    let htmlFullscreen = false;
     wc.on('enter-html-full-screen', () => {
+      htmlFullscreen = true;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('webview-enter-fullscreen');
       }
     });
     wc.on('leave-html-full-screen', () => {
+      htmlFullscreen = false;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('webview-leave-fullscreen');
+      }
+    });
+    // When keyboard focus is inside the player webview, Escape never reaches
+    // the main window's keydown handler. Relay it so the player can be closed.
+    // Don't cancel the event: the guest can also act on Escape (e.g. its own
+    // fullscreen UI) if it wants to.
+    wc.on('before-input-event', (event, input) => {
+      if ((input.type === 'rawKeyDown' || input.type === 'keyDown') && input.key === 'Escape' && !htmlFullscreen) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('player:escape', wc.id);
+        }
       }
     });
   });

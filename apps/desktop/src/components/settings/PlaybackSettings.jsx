@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
+import { PLAYER_SOURCES } from '@nexube/player-engine';
+
+const DEFAULT_SOURCE_ID = 'vidlink';
 
 export default function PlaybackSettings({ activeProfile, onProfileUpdated }) {
-  const [preferredSource, setPreferredSource] = useState(activeProfile?.preferredSource || 'videasy');
+  const [preferredSource, setPreferredSource] = useState(() => {
+    const stored = activeProfile?.preferredSource;
+    return PLAYER_SOURCES.some((source) => source.id === stored) ? stored : DEFAULT_SOURCE_ID;
+  });
   const [autoMarkThreshold, setAutoMarkThreshold] = useState(activeProfile?.autoMarkThreshold || 20);
   const [saveStatus, setSaveStatus] = useState({});
 
@@ -40,17 +46,18 @@ export default function PlaybackSettings({ activeProfile, onProfileUpdated }) {
           Select your default streaming source. Anime content will automatically use AllManga.
         </p>
         <div className="flex flex-wrap gap-sm">
-          {['videasy', 'vidapi', 'vidsrc', 'allmanga'].map((source) => (
+          {PLAYER_SOURCES.map((source) => (
             <button
-              key={source}
-              onClick={() => handleSavePreferredSource(source)}
+              key={source.id}
+              onClick={() => handleSavePreferredSource(source.id)}
               className={`px-md py-sm rounded-button text-sm transition-colors ${
-                preferredSource === source
+                preferredSource === source.id
                   ? 'bg-accent text-background'
                   : 'bg-surface-hover text-text-muted hover:text-text-primary'
               }`}
             >
-              {source.charAt(0).toUpperCase() + source.slice(1)}
+              {source.label}
+              {source.tag ? ` (${source.tag})` : ''}
             </button>
           ))}
         </div>

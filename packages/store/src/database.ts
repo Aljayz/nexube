@@ -16,7 +16,7 @@ const SCHEMA = `
     avatar_color TEXT DEFAULT '#00E5FF',
     avatar TEXT,
     download_path TEXT,
-    preferred_source TEXT DEFAULT 'videasy',
+    preferred_source TEXT DEFAULT 'vidlink',
     auto_mark_threshold INTEGER DEFAULT 20
   );
 
@@ -262,7 +262,7 @@ function migrateDatabase(): void {
       db!.exec('ALTER TABLE profiles ADD COLUMN download_path TEXT');
     } catch {}
     try {
-      db!.exec("ALTER TABLE profiles ADD COLUMN preferred_source TEXT DEFAULT 'videasy'");
+      db!.exec("ALTER TABLE profiles ADD COLUMN preferred_source TEXT DEFAULT 'vidlink'");
     } catch {}
     try {
       db!.exec('ALTER TABLE profiles ADD COLUMN auto_mark_threshold INTEGER DEFAULT 20');
@@ -322,6 +322,14 @@ function migrateDatabase(): void {
         `);
       }
     } catch {}
+
+    // Source identifiers are persisted on profiles and downloads. Normalize
+    // values that no longer belong to the current source list so an upgrade
+    // never leaves a profile or queued download pointing at a removed source.
+    try {
+      db!.exec("UPDATE profiles SET preferred_source = 'vidlink' WHERE preferred_source IS NOT NULL AND preferred_source NOT IN ('vidlink', 'embedwave', 'vidsrc', 'allmanga')");
+      db!.exec("UPDATE downloads SET source_id = 'vidlink' WHERE source_id IS NOT NULL AND source_id NOT IN ('vidlink', 'embedwave', 'vidsrc', 'allmanga')");
+    } catch {}
   } catch (err) {
     console.error('Migration error:', err);
   }
@@ -347,7 +355,7 @@ export function getProfiles(): Profile[] {
     avatarColor: row.avatar_color,
     avatar: row.avatar || null,
     accentColor: row.accent_color || null,
-    preferredSource: row.preferred_source || 'videasy',
+    preferredSource: row.preferred_source || 'vidlink',
     autoMarkThreshold: row.auto_mark_threshold != null ? row.auto_mark_threshold : 20,
   }));
 }
@@ -366,7 +374,7 @@ export function getProfile(id: string): Profile | null {
     avatarColor: row.avatar_color,
     avatar: row.avatar || null,
     accentColor: row.accent_color || null,
-    preferredSource: row.preferred_source || 'videasy',
+    preferredSource: row.preferred_source || 'vidlink',
     autoMarkThreshold: row.auto_mark_threshold != null ? row.auto_mark_threshold : 20,
   };
 }
@@ -387,7 +395,7 @@ export function createProfile(input: { name: string; isKids: boolean; pinHash?: 
 
   const accentColor = input.accentColor || '#00E5FF';
 
-  const preferredSource = input.preferredSource || 'videasy';
+  const preferredSource = input.preferredSource || 'vidlink';
   const autoMarkThreshold = input.autoMarkThreshold != null ? input.autoMarkThreshold : 20;
 
   db!.prepare(

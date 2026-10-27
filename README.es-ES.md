@@ -21,7 +21,7 @@
 ## Características
 
 ### 🎬 Experiencia Principal
-- **Reproductor de Streaming Multi-Fuente** — Cambia sin problemas entre Videasy, VidAPI, VidSrc y AllManga (anime) sin salir del reproductor
+- **Reproductor de Streaming Multi-Fuente** — Cambia sin problemas entre VidLink, VidSrc y AllManga (anime) sin salir del reproductor
 - **Modo Imagen en Imagen (PiP)** — Ventana emergente nativa PiP con configuración de marco de ventana multiplataforma
 - **Bloqueo de Pop-ups y Redirecciones** — Intercepción a nivel de webview con seguimiento de estadísticas por sesión
 - **Gestor de Descargas HLS** — Captura de streams binario integrado `vid-dl` (PyInstaller), con seguimiento de progreso y gestión de cola

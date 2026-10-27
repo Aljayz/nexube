@@ -450,14 +450,14 @@ function register(getMainWindowFn) {
       }
 
       const { getSourceById } = require('../services/sources');
-      const source = getSourceById(sourceId || 'videasy');
+      const source = getSourceById(sourceId) || getSourceById('vidlink');
       if (!source) {
         return { success: false, error: 'Invalid source' };
       }
 
       let captured;
 
-      if (sourceId === 'allmanga') {
+      if (source.id === 'allmanga') {
         const allmangaResult = await resolveAllmanga({
           title,
           seasonNumber: season || 1,
@@ -474,7 +474,7 @@ function register(getMainWindowFn) {
         const playerUrl = typeof source.url === 'function'
           ? await source.url(type, tmdbId, season || 1, episode || 1)
           : source.url;
-        const captureOpts = sourceId === 'vidsrc' ? { visible: true, autoPlay: false } : {};
+        const captureOpts = source.id === 'vidsrc' ? { visible: true, autoPlay: false } : {};
         captured = await captureM3u8Url(playerUrl, 120000, captureOpts);
       }
 
@@ -542,14 +542,14 @@ function register(getMainWindowFn) {
     const downloadId = `ddl-${Date.now()}-${crypto.randomUUID().slice(0, 9)}`;
 
     const { getSourceById } = require('../services/sources');
-    const source = getSourceById(sourceId || 'videasy');
+    const source = getSourceById(sourceId) || getSourceById('vidlink');
     if (!source) {
       return { success: false, error: 'Invalid source' };
     }
 
     let captured;
 
-    if (sourceId === 'allmanga') {
+    if (source.id === 'allmanga') {
       const allmangaResult = await resolveAllmanga({
         title,
         seasonNumber: season || 1,
@@ -566,7 +566,7 @@ function register(getMainWindowFn) {
       const playerUrl = typeof source.url === 'function'
         ? await source.url(type, tmdbId, season || 1, episode || 1)
         : source.url;
-      const captureOpts = sourceId === 'vidsrc' ? { visible: true, autoPlay: false } : {};
+      const captureOpts = source.id === 'vidsrc' ? { visible: true, autoPlay: false } : {};
       captured = await captureM3u8Url(playerUrl, 120000, captureOpts);
     }
 
@@ -708,7 +708,7 @@ function register(getMainWindowFn) {
         console.log(`[queue] processing queued download ${item.id}: ${item.title} S${item.season}E${item.episode}`);
 
         const { getSourceById } = require('../services/sources');
-        const source = getSourceById(item.source_id || 'videasy');
+        const source = getSourceById(item.source_id) || getSourceById('vidlink');
         if (!source) {
           updateDownload(item.id, { status: 'failed', error: 'Invalid source' });
           _sendBatchProgress(item.batch_id);
@@ -716,7 +716,7 @@ function register(getMainWindowFn) {
         }
 
         let captured;
-        if (item.source_id === 'allmanga') {
+        if (source.id === 'allmanga') {
           const allmangaResult = await resolveAllmanga({
             title: item.title,
             seasonNumber: item.season || 1,
@@ -731,7 +731,7 @@ function register(getMainWindowFn) {
           const playerUrl = typeof source.url === 'function'
             ? await source.url(item.media_type, item.tmdb_id, item.season || 1, item.episode || 1)
             : source.url;
-          const captureOpts = item.source_id === 'vidsrc' ? { visible: true, autoPlay: false } : {};
+          const captureOpts = source.id === 'vidsrc' ? { visible: true, autoPlay: false } : {};
           captured = await captureM3u8Url(playerUrl, 120000, captureOpts);
         }
 

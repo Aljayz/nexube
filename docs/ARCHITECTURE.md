@@ -67,7 +67,7 @@ Nexube is a pnpm Turborepo monorepo with four packages and one desktop applicati
 
 ```
 ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│  TMDB    │   │ AniList  │   │ Videasy  │   │  AniSkip │   │ Feedback │
+│  TMDB    │   │ AniList  │   │ VidLink  │   │  AniSkip │   │ Feedback │
 │  API v3  │   │ GraphQL  │   │ Player   │   │  API     │   │  Proxy   │
 │          │   │          │   │          │   │          │   │(Vercel)  │
 │Metadata /│   │  Anime   │   │  Stream  │   │  Op/Ed   │   │ GitHub   │
@@ -315,8 +315,8 @@ profiles (1) ──▶ search_history (N)
 
 | Source | Provider | Key | Type |
 |---|---|---|---|
-| Videasy | `player.videasy.net` | `videasy` | Standard embed |
-| VidAPI | `vaplayer.ru` | `vidapi` | Standard embed |
+| VidLink | `vidlink.pro` | `vidlink` | Standard embed |
+| EmbedWave | `embedwave.cc` | `embedwave` | Standard embed |
 | VidSrc | `vidsrc.to` | `vidsrc` | Standard embed |
 | AllManga | Custom resolver | `allmanga` | GraphQL + hex cipher + AES-256-CTR |
 
@@ -394,7 +394,7 @@ SecurityOverlay ──▶ Verify PIN/password ──▶ Success? ──▶ Home
 |---|---|---|
 | accent_color | string | `#6366f1` |
 | download_path | string | User home |
-| preferred_source | string | `videasy` |
+| preferred_source | string | `vidlink` |
 | auto_mark_threshold | number | 20 (seconds remaining) |
 | search_history | array (json) | `[]` |
 
@@ -509,7 +509,7 @@ max_concurrent_downloads = 2
 Set via `onHeadersReceived` on the default session. Allows:
 - `img-src`: TMDB image CDN, YouTube thumbnails
 - `connect-src`: TMDB API, feedback proxy
-- `frame-src`: All streaming sources (Videasy, VidAPI, VidSrc, YouTube)
+- `frame-src`: All streaming sources (VidLink, EmbedWave, VidSrc, YouTube)
 - `script-src`: `'self' 'unsafe-inline'`
 
 Player and trailer sessions strip CSP headers from upstream to allow embedded content.

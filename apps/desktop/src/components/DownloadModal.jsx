@@ -3,6 +3,8 @@ import { X, Download, CheckCircle, AlertCircle, Loader2, Film, Tv, FolderOpen, S
 import { PLAYER_SOURCES } from '@nexube/player-engine';
 import { useDownloads } from '../hooks/useDownloads';
 
+const DEFAULT_SOURCE_ID = 'vidlink';
+
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -31,7 +33,9 @@ function DownloadModal({ media, activeProfile, sourceId, onClose, isAnime, onPro
   const [downloader, setDownloader] = useState(null);
   const [checking, setChecking] = useState(true);
   const [usingBundled, setUsingBundled] = useState(false);
-  const [selectedSource, setSelectedSource] = useState(sourceId || 'videasy');
+  const [selectedSource, setSelectedSource] = useState(
+    PLAYER_SOURCES.some((source) => source.id === sourceId) ? sourceId : DEFAULT_SOURCE_ID
+  );
   const [translationType, setTranslationType] = useState('sub');
   const [batchQueued, setBatchQueued] = useState(false);
   const [selectedEpisodes, setSelectedEpisodes] = useState(new Set());
